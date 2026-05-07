@@ -29,5 +29,16 @@
 - Keep translation-specific operating rules out of this file.
 - Use `docs/translation_mode.md` when the task explicitly enters translation mode.
 
+## Codex URL Workflow
+- If the user input is a standalone YouTube URL, or a request that includes a YouTube URL, treat `docs/codex_run_youtube_dub.md` as the execution runbook.
+- In that case, proceed without extra confirmation through prepare, translation, audio generation, synced MP4 creation, and lightweight file commit/push.
+- The default completed video is `output/<video_id>/dubbed_video_synced.mp4`.
+- Commit only lightweight files: `json`, `txt`, and `srt`.
+- Never commit `mp4`, `wav`, `mov`, `m4a`, or `aac`.
+- Never commit `synced_segments/*.mp4` or `synced_segments/*.wav`.
+- Default AivisSpeech settings are `http://127.0.0.1:10101` and `speaker_id 1937616896`.
+- Default ffmpeg tools are `ffmpeg` and `ffprobe`.
+- If the run fails, report only the step where it stopped and keep the report concise.
+
 ## Practical Rule
 - Keep changes minimal and consistent with existing script-driven workflow.
