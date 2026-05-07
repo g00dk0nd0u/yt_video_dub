@@ -39,14 +39,14 @@ python user_tools/99_cleanup.py
 2. Codex で `output/<video_id>/translation_input/chunk_*.txt` を翻訳し、`output/<video_id>/translation_output/chunk_*.txt` に保存する
 3. AivisSpeech を起動する
 4. `user_tools/02_make_video.py` を実行する
-5. `output/<video_id>/dubbed_video.mp4` を開く
+5. `output/<video_id>/dubbed_video_synced.mp4` を開く
 6. 掃除したい時は `user_tools/99_cleanup.py` を実行する
 
 `scripts/` は内部処理用として残しています。主な内部入口は `scripts/run_prepare.py` と `scripts/91_run_local_tts_pipeline.py` です。
 
 `user_tools/01_new_youtube.py` は `scripts/run_prepare.py` を呼び、YouTube URL から翻訳用ファイルを作ります。`--job-id` を指定しないため、動画IDがそのまま `output/<video_id>/` に使われます。
 
-`user_tools/02_make_video.py` は `scripts/91_run_local_tts_pipeline.py` を呼び、翻訳済みテキストから日本語音声付き動画を作ります。
+`user_tools/02_make_video.py` は `scripts/91_run_local_tts_pipeline.py` を呼び、翻訳済みテキストから音声と映像を合わせた日本語吹替動画を作ります。
 
 `user_tools/99_cleanup.py` は `output/` 配下の動画フォルダだけを安全に削除します。
 
@@ -66,10 +66,11 @@ output/<video_id>/
   translated_segments.srt
   tts/
   dub_audio.wav
+  dubbed_video_synced.mp4
   dubbed_video.mp4
 ```
 
-すべての作業ファイルは `output/<video_id>/` にまとまります。`job.json` を含む軽量な進行管理ファイルと、音声・動画などの重い生成物がここに入ります。
+すべての作業ファイルは `output/<video_id>/` にまとまります。`job.json` を含む軽量な進行管理ファイルと、音声・動画などの重い生成物がここに入ります。通常の完成動画は `dubbed_video_synced.mp4` です。`dubbed_video.mp4` は `scripts/08_mux_video.py` による簡易 mux 版として残しています。
 
 ## Git Tracking Policy
 
