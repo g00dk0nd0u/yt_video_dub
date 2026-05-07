@@ -11,6 +11,7 @@ JOB_ID = "phase1_smoke_rick"
 FORCE_TTS = True
 RESUME = False
 SKIP_BUILD_TRANSLATED = False
+MUX_VIDEO = True
 
 
 def _load_pipeline_module():
@@ -66,6 +67,8 @@ def main() -> int:
         args.append("--resume")
     if SKIP_BUILD_TRANSLATED:
         args.append("--skip-build-translated")
+    if MUX_VIDEO:
+        args.append("--mux-video")
 
     return pipeline.main(args)
 
