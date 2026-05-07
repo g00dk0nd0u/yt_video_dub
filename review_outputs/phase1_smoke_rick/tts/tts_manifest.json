@@ -1,0 +1,36 @@
+{
+  "job_id": "phase1_smoke_rick",
+  "base_url": "http://127.0.0.1:10101",
+  "speaker_id": 1937616896,
+  "total_segments": 61,
+  "generated_at": "2026-05-07T03:13:44.051765+00:00",
+  "items": [
+    {
+      "index": 1,
+      "segment_id": "seg_0001",
+      "start": 1.36,
+      "end": 3.04,
+      "text": "",
+      "wav_path": null,
+      "status": "skipped_empty"
+    },
+    {
+      "index": 2,
+      "segment_id": "seg_0002",
+      "start": 18.64,
+      "end": 21.88,
+      "text": "私たちはもう他人じゃない。",
+      "wav_path": "tts/segment_000002.wav",
+      "status": "reused"
+    },
+    {
+      "index": 3,
+      "segment_id": "seg_0003",
+      "start": 22.64,
+      "end": 26.96,
+      "text": "君もそのルールを知っている。私もだ。",
+      "wav_path": "tts/segment_000003.wav",
+      "status": "reused"
+    }
+  ]
+}
