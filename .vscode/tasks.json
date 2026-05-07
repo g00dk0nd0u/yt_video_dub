@@ -4,7 +4,7 @@
     {
       "label": "yt_video_dub: rebuild all TTS + dub audio",
       "type": "shell",
-      "command": "python3",
+      "command": ".venv/bin/python",
       "args": [
         "scripts/91_run_local_tts_pipeline.py",
         "--force-tts"
@@ -17,7 +17,7 @@
     {
       "label": "yt_video_dub: resume TTS + dub audio",
       "type": "shell",
-      "command": "python3",
+      "command": ".venv/bin/python",
       "args": [
         "scripts/91_run_local_tts_pipeline.py",
         "--resume"
@@ -30,7 +30,7 @@
     {
       "label": "yt_video_dub: rebuild range 7-20",
       "type": "shell",
-      "command": "python3",
+      "command": ".venv/bin/python",
       "args": [
         "scripts/91_run_local_tts_pipeline.py",
         "--start-index",
