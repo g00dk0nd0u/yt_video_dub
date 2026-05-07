@@ -15,6 +15,8 @@ BASE_URL = "http://127.0.0.1:10101"
 SPEAKER_ID = 1937616896
 FFMPEG_BIN = "ffmpeg"
 FFPROBE_BIN = "ffprobe"
+VIDEO_TAIL_CUSHION_RATIO = 0.015
+VIDEO_TAIL_CUSHION_MAX_SEC = 0.18
 
 
 def _load_pipeline_module():
@@ -102,6 +104,10 @@ def main() -> int:
         FFMPEG_BIN,
         "--ffprobe-bin",
         FFPROBE_BIN,
+        "--video-tail-cushion-ratio",
+        str(VIDEO_TAIL_CUSHION_RATIO),
+        "--video-tail-cushion-max-sec",
+        str(VIDEO_TAIL_CUSHION_MAX_SEC),
     ]
     if make_audio:
         args.append("--force-tts")

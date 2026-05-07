@@ -48,6 +48,7 @@ python user_tools/99_cleanup.py
 `user_tools/01_new_youtube.py` は `scripts/run_prepare.py` を呼び、YouTube URL から翻訳用ファイルを作ります。`--job-id` を指定しないため、動画IDがそのまま `output/<video_id>/` に使われます。
 
 `user_tools/02_make_video.py` は `scripts/91_run_local_tts_pipeline.py` を呼び、翻訳済みテキストから音声と映像を合わせた日本語吹替動画を作ります。
+同期版動画では、セグメント末尾の欠けを避けるため、映像をわずかに長めに生成します。
 
 Codex URL ワークフローの完了地点は、翻訳済みソースの作成と軽量ファイルの commit/push です。その先の動画生成はローカルで次を実行します。
 
