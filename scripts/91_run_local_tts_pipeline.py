@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+"""Run the local TTS and dub-audio workflow with repo-friendly defaults."""
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
+from pathlib import Path
+from typing import Any
+
+
+DEFAULT_JOB_ID = "phase1_smoke_rick"
+DEFAULT_OUTPUT_DIR = "output"
+DEFAULT_BASE_URL = "http://127.0.0.1:10101"
+DEFAULT_SPEAKER_ID = 1937616896
+DEFAULT_REVIEW_DIR = "review_outputs"
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Run translated-segment rebuild, TTS, dub-audio build, and review export."
+    )
+    parser.add_argument(
+        "--job-id",
+        default=DEFAULT_JOB_ID,
+        help=f"Job identifier under output/<job_id>/. Default: {DEFAULT_JOB_ID}",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=DEFAULT_OUTPUT_DIR,
+        help=f"Base output directory. Default: {DEFAULT_OUTPUT_DIR}",
+    )
+    parser.add_argument(
+        "--base-url",
+        default=DEFAULT_BASE_URL,
+        help=f"Base URL for the local AivisSpeech API. Default: {DEFAULT_BASE_URL}",
+    )
+    parser.add_argument(
+        "--speaker-id",
+        default=DEFAULT_SPEAKER_ID,
+        type=int,
+        help=f"Speaker ID to use for TTS generation. Default: {DEFAULT_SPEAKER_ID}",
+    )
+    parser.add_argument(
+        "--review-dir",
+        default=DEFAULT_REVIEW_DIR,
+        help=f"Destination review directory. Default: {DEFAULT_REVIEW_DIR}",
+    )
+    parser.add_argument(
+        "--force-tts",
+        action="store_true",
+        help="Pass --force to scripts/06_generate_tts_segments.py.",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Pass --resume to scripts/06_generate_tts_segments.py.",
+    )
+    parser.add_argument(
+        "--start-index",
+        type=int,
+        help="1-based translated segment index to start TTS from.",
+    )
+    parser.add_argument(
+        "--end-index",
+        type=int,
+        help="1-based translated segment index to end TTS at.",
+    )
+    parser.add_argument(
+        "--skip-build-translated",
+        action="store_true",
+        help="Skip scripts/04_build_translated_segments.py.",
+    )
+    return parser
+
+
+def _load_script_module(filename: str) -> Any:
+    script_path = Path(__file__).with_name(filename)
+    module_name = f"local_tts_pipeline_{filename.replace('.', '_').replace('-', '_')}"
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Failed to load script module: {script_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _run_step(label: str, module_filename: str, step_args: list[str]) -> None:
+    module = _load_script_module(module_filename)
+    print(f"== {label} ==")
+    module.main(step_args)
+    print("")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    common_job_args = [
+        "--job-id",
+        args.job_id,
+        "--output-dir",
+        args.output_dir,
+    ]
+
+    if not args.skip_build_translated:
+        _run_step(
+            "Step 1: build translated segments",
+            "04_build_translated_segments.py",
+            common_job_args,
+        )
+
+    tts_args = [
+        "--job-id",
+        args.job_id,
+        "--output-dir",
+        args.output_dir,
+        "--base-url",
+        args.base_url,
+        "--speaker-id",
+        str(args.speaker_id),
+    ]
+    if args.resume:
+        tts_args.append("--resume")
+    if args.force_tts:
+        tts_args.append("--force")
+    if args.start_index is not None:
+        tts_args.extend(["--start-index", str(args.start_index)])
+    if args.end_index is not None:
+        tts_args.extend(["--end-index", str(args.end_index)])
+
+    _run_step(
+        "Step 2: generate TTS segments",
+        "06_generate_tts_segments.py",
+        tts_args,
+    )
+    _run_step(
+        "Step 3: build dub audio",
+        "07_build_dub_audio.py",
+        common_job_args,
+    )
+    _run_step(
+        "Step 4: export review output",
+        "90_export_review_output.py",
+        common_job_args + ["--review-dir", args.review_dir],
+    )
+
+    print("Local TTS pipeline completed.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

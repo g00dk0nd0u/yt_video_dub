@@ -1,0 +1,48 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "yt_video_dub: rebuild all TTS + dub audio",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "scripts/91_run_local_tts_pipeline.py",
+        "--force-tts"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "yt_video_dub: resume TTS + dub audio",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "scripts/91_run_local_tts_pipeline.py",
+        "--resume"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "yt_video_dub: rebuild range 7-20",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "scripts/91_run_local_tts_pipeline.py",
+        "--start-index",
+        "7",
+        "--end-index",
+        "20",
+        "--force-tts"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
