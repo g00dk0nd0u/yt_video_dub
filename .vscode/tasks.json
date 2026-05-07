@@ -6,8 +6,7 @@
       "type": "shell",
       "command": ".venv/bin/python",
       "args": [
-        "scripts/91_run_local_tts_pipeline.py",
-        "--force-tts"
+        "user_tools/run_rebuild_all.py"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -19,8 +18,7 @@
       "type": "shell",
       "command": ".venv/bin/python",
       "args": [
-        "scripts/91_run_local_tts_pipeline.py",
-        "--resume"
+        "user_tools/run_resume.py"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -32,12 +30,7 @@
       "type": "shell",
       "command": ".venv/bin/python",
       "args": [
-        "scripts/91_run_local_tts_pipeline.py",
-        "--start-index",
-        "7",
-        "--end-index",
-        "20",
-        "--force-tts"
+        "user_tools/run_rebuild_range.py"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
