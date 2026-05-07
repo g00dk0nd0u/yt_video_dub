@@ -60,4 +60,4 @@ output/<job_id>/
 
 - YouTube 字幕取得は `youtube-transcript-api` を本線にする方針です。
 - Whisper は YouTube 字幕が取得できない場合やローカル動画向け fallback として次フェーズで実装します。
-- AivisSpeech はローカル接続前提で、詳細は [docs/workflow.md](/Users/ryokondo/Documents/iMac_Python/yt_video_dub/docs/workflow.md) にまとめます。
+- AivisSpeech はローカル接続前提で、詳細は [docs/workflow.md](docs/workflow.md) にまとめます。
