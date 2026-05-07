@@ -13,6 +13,7 @@ OUTPUT_DIR = "output"
 BASE_URL = "http://127.0.0.1:10101"
 SPEAKER_ID = 1937616896
 FFMPEG_BIN = "ffmpeg"
+FFPROBE_BIN = "ffprobe"
 
 
 def _load_pipeline_module():
@@ -72,7 +73,7 @@ def main() -> int:
 
     video_id = _prompt_with_default("動画ID", latest_video_id)
     make_audio = _prompt_yes_no("日本語音声を作り直しますか？", default_yes=True)
-    make_mp4 = _prompt_yes_no("最後にMP4動画まで作りますか？", default_yes=True)
+    make_mp4 = _prompt_yes_no("音と映像を合わせたMP4動画を作りますか？", default_yes=True)
 
     pipeline = _load_pipeline_module()
     args = [
@@ -86,6 +87,8 @@ def main() -> int:
         str(SPEAKER_ID),
         "--ffmpeg-bin",
         FFMPEG_BIN,
+        "--ffprobe-bin",
+        FFPROBE_BIN,
     ]
     if make_audio:
         args.append("--force-tts")
@@ -95,7 +98,7 @@ def main() -> int:
     pipeline.main(args)
 
     print("")
-    print(f"完成動画: output/{video_id}/dubbed_video.mp4")
+    print(f"完成動画: output/{video_id}/dubbed_video_synced.mp4")
     print(
         f"軽量ファイルは output/{video_id}/ の json / txt / srt をそのままGitHubにpushできます。"
     )

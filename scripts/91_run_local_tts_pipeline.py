@@ -43,12 +43,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--mux-video",
         action="store_true",
-        help="Run scripts/08_mux_video.py after scripts/07_build_dub_audio.py.",
+        help="Run scripts/09_build_synced_video.py after scripts/07_build_dub_audio.py.",
     )
     parser.add_argument(
         "--ffmpeg-bin",
         default="ffmpeg",
-        help='ffmpeg binary name or path for scripts/08_mux_video.py. Default: "ffmpeg"',
+        help='ffmpeg binary name or path for synced video build. Default: "ffmpeg"',
+    )
+    parser.add_argument(
+        "--ffprobe-bin",
+        default="ffprobe",
+        help='ffprobe binary name or path for synced video build. Default: "ffprobe"',
     )
     parser.add_argument(
         "--force-tts",
@@ -145,9 +150,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.mux_video:
         _run_step(
-            "Step 4: create dubbed video",
-            "08_mux_video.py",
-            common_job_args + ["--ffmpeg-bin", args.ffmpeg_bin],
+            "Step 4: create synced dubbed video",
+            "09_build_synced_video.py",
+            common_job_args
+            + [
+                "--ffmpeg-bin",
+                args.ffmpeg_bin,
+                "--ffprobe-bin",
+                args.ffprobe_bin,
+                "--max-audio-speed",
+                "1.25",
+            ],
         )
     print("Video build completed.")
     print(f"Lightweight files under output/{args.job_id}/ (*.json, *.txt, *.srt) can be committed.")
