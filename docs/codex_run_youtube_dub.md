@@ -1,13 +1,14 @@
 # Codex Runbook: YouTube Japanese Dub
 
 This document is the execution runbook for Codex.
-When the user gives a YouTube URL and asks to make a Japanese dubbed video, Codex should follow this document from start to finish.
+When the user gives a YouTube URL and asks to make a Japanese dubbed video, Codex should follow this document through translation handoff only.
 
 ## 1. Input
 
 - The user provides one YouTube URL.
 - Extract `video_id` from the URL.
 - Use `output/<video_id>/` as the job folder.
+- Do not continue into long-running local TTS or video generation in this URL-only workflow.
 
 ## 2. Prepare
 
@@ -47,9 +48,9 @@ Rules:
 - Translate only `text`.
 - Make Japanese natural and short enough for speech.
 
-## 4. Build Synced Dubbed Video
+## 4. Do Not Run Local Media Generation
 
-Run:
+Do not run:
 
 ```bash
 python3 scripts/91_run_local_tts_pipeline.py \
@@ -63,15 +64,19 @@ python3 scripts/91_run_local_tts_pipeline.py \
   --mux-video
 ```
 
+Do not run:
+
+- AivisSpeech TTS generation
+- WAV generation
+- `synced_segments` generation
+- `dubbed_video_synced.mp4` generation
+- Long ffmpeg processing
+
 ## 5. Verify
 
-Check:
-
 - `translated_segments.json` exists.
-- `tts/tts_manifest.json` exists.
-- `synced_video_manifest.json` exists.
-- `dubbed_video_synced.mp4` exists locally.
-- `synced_video_manifest.json` has `total_items == processed_items`.
+- `translated_segments.srt` exists when the translation build step produces it.
+- `translation_output/chunk_*.txt` exists for every input chunk.
 
 ## 6. Git
 
@@ -91,13 +96,36 @@ Do not commit:
 - `synced_segments/*.mp4`
 - `synced_segments/*.wav`
 
-## 7. Report
+## 7. Push
+
+Commit and push only the lightweight translation artifacts.
+
+## 8. Report
 
 Report:
 
 - `video_id`
 - chunk count
-- `total_items / processed_items`
-- adjustment summary
-- output video path
-- `git status`
+- created translation output paths
+- committed lightweight file types
+- the exact local command the user should run next
+
+Local interactive command:
+
+```bash
+python user_tools/02_make_video.py
+```
+
+Local non-interactive command:
+
+```bash
+python3 scripts/91_run_local_tts_pipeline.py \
+  --job-id <video_id> \
+  --output-dir output \
+  --base-url http://127.0.0.1:10101 \
+  --speaker-id 1937616896 \
+  --ffmpeg-bin ffmpeg \
+  --ffprobe-bin ffprobe \
+  --force-tts \
+  --mux-video
+```

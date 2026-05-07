@@ -31,11 +31,14 @@
 
 ## Codex URL Workflow
 - If the user input is a standalone YouTube URL, or a request that includes a YouTube URL, treat `docs/codex_run_youtube_dub.md` as the execution runbook.
-- In that case, proceed without extra confirmation through prepare, translation, audio generation, synced MP4 creation, and lightweight file commit/push.
-- The default completed video is `output/<video_id>/dubbed_video_synced.mp4`.
+- In that case, proceed without extra confirmation through prepare, translation, lightweight file commit/push, and final local-run guidance only.
+- Stop before long-running local media generation.
 - Commit only lightweight files: `json`, `txt`, and `srt`.
 - Never commit `mp4`, `wav`, `mov`, `m4a`, or `aac`.
 - Never commit `synced_segments/*.mp4` or `synced_segments/*.wav`.
+- Do not run AivisSpeech TTS generation, WAV generation, synced segment generation, synced MP4 creation, or long ffmpeg processing when handling a URL-only request.
+- The user-side local completion command is `python user_tools/02_make_video.py`.
+- The non-interactive local command is `python3 scripts/91_run_local_tts_pipeline.py --job-id <video_id> --output-dir output --base-url http://127.0.0.1:10101 --speaker-id 1937616896 --ffmpeg-bin ffmpeg --ffprobe-bin ffprobe --force-tts --mux-video`.
 - Default AivisSpeech settings are `http://127.0.0.1:10101` and `speaker_id 1937616896`.
 - Default ffmpeg tools are `ffmpeg` and `ffprobe`.
 - If the run fails, report only the step where it stopped and keep the report concise.

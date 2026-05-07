@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 Whisper fallback は未実装です。必要になった時点で `faster-whisper` を追加導入します。
 
-Codex に YouTube URL だけ渡すと、`AGENTS.md` のルールにより `docs/codex_run_youtube_dub.md` の流れで処理します。
+Codex に YouTube URL だけ渡すと、`AGENTS.md` のルールにより `docs/codex_run_youtube_dub.md` の流れで、翻訳済みソース作成まで進めます。長時間の TTS 生成や ffmpeg による動画生成は Codex では実行しません。
 
 ## Entrypoints
 
@@ -38,17 +38,36 @@ python user_tools/99_cleanup.py
 普段ユーザーが触るのは `user_tools/` の3本だけです。
 
 1. `user_tools/01_new_youtube.py` を実行して YouTube URL を貼る
-2. Codex で `output/<video_id>/translation_input/chunk_*.txt` を翻訳し、`output/<video_id>/translation_output/chunk_*.txt` に保存する
-3. AivisSpeech を起動する
-4. `user_tools/02_make_video.py` を実行する
-5. `output/<video_id>/dubbed_video_synced.mp4` を開く
-6. 掃除したい時は `user_tools/99_cleanup.py` を実行する
+2. Codex に URL を渡した場合は、`scripts/run_prepare.py` 実行と `output/<video_id>/translation_input/chunk_*.txt` の翻訳を行い、`output/<video_id>/translation_output/chunk_*.txt` まで作る
+3. 動画生成はユーザーの Mac で AivisSpeech を起動してから `user_tools/02_make_video.py` を実行する
+4. `output/<video_id>/dubbed_video_synced.mp4` を開く
+5. 掃除したい時は `user_tools/99_cleanup.py` を実行する
 
 `scripts/` は内部処理用として残しています。主な内部入口は `scripts/run_prepare.py` と `scripts/91_run_local_tts_pipeline.py` です。
 
 `user_tools/01_new_youtube.py` は `scripts/run_prepare.py` を呼び、YouTube URL から翻訳用ファイルを作ります。`--job-id` を指定しないため、動画IDがそのまま `output/<video_id>/` に使われます。
 
 `user_tools/02_make_video.py` は `scripts/91_run_local_tts_pipeline.py` を呼び、翻訳済みテキストから音声と映像を合わせた日本語吹替動画を作ります。
+
+Codex URL ワークフローの完了地点は、翻訳済みソースの作成と軽量ファイルの commit/push です。その先の動画生成はローカルで次を実行します。
+
+```bash
+python user_tools/02_make_video.py
+```
+
+非対話で実行する場合:
+
+```bash
+python3 scripts/91_run_local_tts_pipeline.py \
+  --job-id <video_id> \
+  --output-dir output \
+  --base-url http://127.0.0.1:10101 \
+  --speaker-id 1937616896 \
+  --ffmpeg-bin ffmpeg \
+  --ffprobe-bin ffprobe \
+  --force-tts \
+  --mux-video
+```
 
 `user_tools/99_cleanup.py` は `output/` 配下の動画フォルダだけを安全に削除します。
 
