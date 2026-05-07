@@ -20,7 +20,7 @@ def _load_pipeline_module():
 
 def main() -> int:
     pipeline = _load_pipeline_module()
-    return pipeline.main(["--force-tts"])
+    return pipeline.main(["--force-tts", "--mux-video"])
 
 
 if __name__ == "__main__":

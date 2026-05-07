@@ -32,8 +32,8 @@
       "target_start": 18.64,
       "target_end": 21.88,
       "actual_start": 18.64,
-      "actual_end": 20.87170068027211,
-      "wav_duration": 2.231700680272109,
+      "actual_end": 20.832108843537416,
+      "wav_duration": 2.1921088435374148,
       "silence_inserted": 15.6,
       "warning": null
     },
@@ -47,7 +47,7 @@
       "actual_start": 22.64,
       "actual_end": 25.88952380952381,
       "wav_duration": 3.2495238095238097,
-      "silence_inserted": 1.7682993197278911,
+      "silence_inserted": 1.807891156462585,
       "warning": null
     },
     {

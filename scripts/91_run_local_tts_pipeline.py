@@ -18,7 +18,7 @@ DEFAULT_REVIEW_DIR = "review_outputs"
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run translated-segment rebuild, TTS, dub-audio build, and review export."
+        description="Run translated-segment rebuild, TTS, dub-audio build, optional video mux, and review export."
     )
     parser.add_argument(
         "--job-id",
@@ -45,6 +45,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--review-dir",
         default=DEFAULT_REVIEW_DIR,
         help=f"Destination review directory. Default: {DEFAULT_REVIEW_DIR}",
+    )
+    parser.add_argument(
+        "--mux-video",
+        action="store_true",
+        help="Run scripts/08_mux_video.py after scripts/07_build_dub_audio.py.",
+    )
+    parser.add_argument(
+        "--ffmpeg-bin",
+        default="ffmpeg",
+        help='ffmpeg binary name or path for scripts/08_mux_video.py. Default: "ffmpeg"',
     )
     parser.add_argument(
         "--force-tts",
@@ -139,8 +149,14 @@ def main(argv: list[str] | None = None) -> int:
         "07_build_dub_audio.py",
         common_job_args,
     )
+    if args.mux_video:
+        _run_step(
+            "Step 4: mux dubbed video",
+            "08_mux_video.py",
+            common_job_args + ["--ffmpeg-bin", args.ffmpeg_bin],
+        )
     _run_step(
-        "Step 4: export review output",
+        "Step 5: export review output" if args.mux_video else "Step 4: export review output",
         "90_export_review_output.py",
         common_job_args + ["--review-dir", args.review_dir],
     )
