@@ -4,7 +4,7 @@
 
 現在の本線は `scripts/` と `docs/` です。旧YMM系、旧VOICEVOX系、GPU前提コードは削除せず `legacy/` に退避しています。
 
-この段階では `Commit 1` と `Commit 2` 相当までを反映しており、Phase 1 / Phase 2 の実処理はまだ未実装です。新規 `scripts/*.py` は引数仕様の固定と TODO の明示までで止まります。
+この段階では Phase 1 のみ実装済みです。YouTube URL から `source.mp4`、英語優先の字幕、翻訳用 chunk を生成して停止します。Phase 2 の翻訳反映、AivisSpeech、mux はまだ未実装です。
 
 ## Current Layout
 
@@ -26,14 +26,20 @@ pip install -r requirements.txt
 
 Whisper fallback は次フェーズ実装予定です。必要になった時点で `faster-whisper` を追加導入します。
 
-## Planned Entrypoints
+## Entrypoints
 
 ```bash
 python scripts/run_prepare.py --help
 python scripts/run_finish.py --help
 ```
 
-各スクリプトは現時点では `--help` のみ確認対象です。実行すると TODO / `NotImplementedError` で停止します。
+Phase 1 は次で実行できます。
+
+```bash
+python scripts/run_prepare.py --youtube-url "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+`--job-id` を省略すると YouTube `video_id` がそのまま使われます。`--local-video` は引数だけ用意してあり、実装は次フェーズです。
 
 ## Fixed Output Layout
 
@@ -54,10 +60,10 @@ output/<job_id>/
   dubbed_video.mp4
 ```
 
-`output/` 配下の重い生成物は Git 管理対象に含めません。
+Phase 1 で実際に生成されるのは `translation_output/` までです。`output/` 配下の重い生成物は Git 管理対象に含めません。
 
 ## Notes
 
 - YouTube 字幕取得は `youtube-transcript-api` を本線にする方針です。
-- Whisper は YouTube 字幕が取得できない場合やローカル動画向け fallback として次フェーズで実装します。
+- Whisper は YouTube 字幕が取得できない場合やローカル動画向け fallback として次フェーズで実装します。現状は分かりやすいエラーで停止します。
 - AivisSpeech はローカル接続前提で、詳細は [docs/workflow.md](docs/workflow.md) にまとめます。
