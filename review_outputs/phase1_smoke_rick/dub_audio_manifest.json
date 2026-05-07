@@ -1,0 +1,54 @@
+{
+  "job_id": "phase1_smoke_rick",
+  "source_manifest": "tts/tts_manifest.json",
+  "output_wav": "dub_audio.wav",
+  "wav_params": {
+    "nchannels": 1,
+    "sampwidth": 2,
+    "framerate": 44100,
+    "comptype": "NONE",
+    "compname": "not compressed"
+  },
+  "total_items": 3,
+  "processed_items": 3,
+  "warnings_count": 0,
+  "items": [
+    {
+      "index": 1,
+      "segment_id": "seg_0001",
+      "status": "skipped_empty",
+      "target_start": 1.36,
+      "target_end": 3.04,
+      "actual_start": 0.0,
+      "actual_end": 3.04,
+      "silence_inserted": 3.04,
+      "warning": null
+    },
+    {
+      "index": 2,
+      "segment_id": "seg_0002",
+      "status": "reused",
+      "wav_path": "tts/segment_000002.wav",
+      "target_start": 18.64,
+      "target_end": 21.88,
+      "actual_start": 18.64,
+      "actual_end": 20.820521541950114,
+      "wav_duration": 2.1805215419501134,
+      "silence_inserted": 15.6,
+      "warning": null
+    },
+    {
+      "index": 3,
+      "segment_id": "seg_0003",
+      "status": "reused",
+      "wav_path": "tts/segment_000003.wav",
+      "target_start": 22.64,
+      "target_end": 26.96,
+      "actual_start": 22.64,
+      "actual_end": 25.92814058956916,
+      "wav_duration": 3.288140589569161,
+      "silence_inserted": 1.8194784580498866,
+      "warning": null
+    }
+  ]
+}

@@ -14,6 +14,7 @@ FILES_TO_COPY = (
     "transcript_original.srt",
     "translated_segments.json",
     "translated_segments.srt",
+    "dub_audio_manifest.json",
     "translation_input/manifest.json",
     "tts/tts_manifest.json",
 )
