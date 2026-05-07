@@ -87,12 +87,25 @@ def _validate_chunk_pair(
                     f"{field} does not match the source chunk."
                 )
 
+        if "text" not in translated_item:
+            raise RuntimeError(
+                f"Chunk validation failed at {translated_path} line {index}: "
+                "text is missing from the translated chunk."
+            )
+
+        translated_text = translated_item["text"]
+        if not isinstance(translated_text, str):
+            raise RuntimeError(
+                f"Chunk validation failed at {translated_path} line {index}: "
+                "text must be a string."
+            )
+
         merged_items.append(
             {
                 "segment_id": source_item["segment_id"],
                 "start": source_item["start"],
                 "end": source_item["end"],
-                "text": translated_item.get("text", ""),
+                "text": translated_text,
             }
         )
     return merged_items
