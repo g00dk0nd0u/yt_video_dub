@@ -3,7 +3,7 @@
   "base_url": "http://127.0.0.1:10101",
   "speaker_id": 1937616896,
   "total_segments": 61,
-  "generated_at": "2026-05-07T03:36:23.235462+00:00",
+  "generated_at": "2026-05-07T04:09:27.552031+00:00",
   "items": [
     {
       "index": 1,
@@ -37,7 +37,7 @@
       "segment_id": "seg_0004",
       "start": 27.04,
       "end": 31.04,
-      "text": "♪ A full commitment's\nwhat I'm thinking of ♪",
+      "text": "♪ ひたむきな愛を\n僕は思ってる ♪",
       "wav_path": "tts/segment_000004.wav",
       "status": "generated"
     },
@@ -46,7 +46,7 @@
       "segment_id": "seg_0005",
       "start": 31.12,
       "end": 35.08,
-      "text": "♪ You wouldn't get this\nfrom any other guy ♪",
+      "text": "♪ そんな気持ちは\n他の誰にも無理さ ♪",
       "wav_path": "tts/segment_000005.wav",
       "status": "generated"
     },
@@ -55,7 +55,7 @@
       "segment_id": "seg_0006",
       "start": 35.16,
       "end": 39.52,
-      "text": "♪ I just wanna tell you\nhow I'm feeling ♪",
+      "text": "♪ ただ君に伝えたい\nこの気持ちを ♪",
       "wav_path": "tts/segment_000006.wav",
       "status": "generated"
     },
