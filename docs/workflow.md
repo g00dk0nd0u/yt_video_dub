@@ -4,9 +4,9 @@
 
 ## Current Status
 
-- This repository currently provides skeleton scripts only.
-- `scripts/*.py` define argument contracts and stop with `TODO` / `NotImplementedError`.
-- Phase 1 and Phase 2 implementation will be added in a later step.
+- Phase 1 is implemented for YouTube input.
+- `scripts/run_prepare.py` runs `01_prepare_source.py`, `02_get_transcript.py`, and `03_make_translation_chunks.py`.
+- Phase 2 remains out of scope in the current repository state.
 
 ## Active Workflow Design
 
@@ -16,9 +16,9 @@
 2. Store working files under `output/<job_id>/`.
 3. If the input is YouTube:
    - Download `source.mp4`.
-   - Fetch subtitles via `youtube-transcript-api` as the primary path.
+   - Fetch subtitles via `youtube-transcript-api` with English preferred.
 4. If subtitles are unavailable:
-   - Leave a Whisper fallback TODO for a future phase.
+   - Stop with a clear error. Whisper fallback is still TODO.
 5. Prepare translation input chunks and stop.
 
 ### Phase 2
@@ -77,7 +77,6 @@ The exact endpoint and payload contract are still to be confirmed.
 ## TODO
 
 - Confirm the exact AivisSpeech API endpoints and request bodies.
-- Implement YouTube download and transcript fetch logic.
 - Implement Whisper fallback for subtitle-missing YouTube videos and local videos.
-- Define the exact translation chunk text format and validation rules in code.
+- Extend Phase 1 local video support beyond the current CLI placeholder.
 - Implement ffmpeg-based muxing with copied video stream and AAC audio output.
