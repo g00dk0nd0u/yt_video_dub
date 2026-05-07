@@ -1,0 +1,63 @@
+{
+  "job_id": "flvZ6jEj3VU",
+  "max_audio_speed": 1.25,
+  "output_video": "dubbed_video_synced.mp4",
+  "total_items": 17,
+  "processed_items": 3,
+  "items": [
+    {
+      "index": 1,
+      "segment_id": "seg_0001",
+      "source_start": 0.052,
+      "source_end": 4.092,
+      "source_duration": 4.04,
+      "original_wav_path": "tts/segment_000001.wav",
+      "original_wav_duration": 7.18449,
+      "adjusted_audio_path": "synced_segments/segment_000001_adjusted.wav",
+      "adjusted_audio_duration": 5.747596,
+      "output_segment_path": "synced_segments/segment_000001.mp4",
+      "required_audio_speed": 1.778339108910891,
+      "applied_audio_speed": 1.25,
+      "video_speed": 0.702903059228978,
+      "target_duration": 5.747596,
+      "adjustment": "sped_audio_and_slowed_video",
+      "warning": "Audio exceeded source duration and required video slowdown after reaching max audio speed 1.25."
+    },
+    {
+      "index": 2,
+      "segment_id": "seg_0002",
+      "source_start": 4.632,
+      "source_end": 9.372,
+      "source_duration": 4.74,
+      "original_wav_path": "tts/segment_000002.wav",
+      "original_wav_duration": 6.155692,
+      "adjusted_audio_path": "synced_segments/segment_000002_adjusted.wav",
+      "adjusted_audio_duration": 4.924558,
+      "output_segment_path": "synced_segments/segment_000002.mp4",
+      "required_audio_speed": 1.2986691983122363,
+      "applied_audio_speed": 1.25,
+      "video_speed": 0.9625237909888928,
+      "target_duration": 4.924558,
+      "adjustment": "sped_audio_and_slowed_video",
+      "warning": "Audio exceeded source duration and required video slowdown after reaching max audio speed 1.25."
+    },
+    {
+      "index": 3,
+      "segment_id": "seg_0003",
+      "source_start": 9.732,
+      "source_end": 15.332,
+      "source_duration": 5.600000000000001,
+      "original_wav_path": "tts/segment_000003.wav",
+      "original_wav_duration": 7.361315,
+      "adjusted_audio_path": "synced_segments/segment_000003_adjusted.wav",
+      "adjusted_audio_duration": 5.889048,
+      "output_segment_path": "synced_segments/segment_000003.mp4",
+      "required_audio_speed": 1.3145205357142855,
+      "applied_audio_speed": 1.25,
+      "video_speed": 0.9509170576181024,
+      "target_duration": 5.889048,
+      "adjustment": "sped_audio_and_slowed_video",
+      "warning": "Audio exceeded source duration and required video slowdown after reaching max audio speed 1.25."
+    }
+  ]
+}
