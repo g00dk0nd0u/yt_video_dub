@@ -1,0 +1,68 @@
+{"segment_id": "seg_0001", "start": 3.679, "end": 7.12, "text": "Claude に毎回"}
+{"segment_id": "seg_0002", "start": 5.2, "end": 9.519, "text": "チームのコーディング規約を説明していると、"}
+{"segment_id": "seg_0003", "start": 7.12, "end": 12.16, "text": "同じことの繰り返しになります。"}
+{"segment_id": "seg_0004", "start": 9.519, "end": 13.84, "text": "PR レビューのたびに、"}
+{"segment_id": "seg_0005", "start": 12.16, "end": 16.08, "text": "フィードバックの書き方をまた説明する。"}
+{"segment_id": "seg_0006", "start": 13.84, "end": 18.32, "text": "コミットメッセージのたびに、Claude に"}
+{"segment_id": "seg_0007", "start": 16.08, "end": 21.439, "text": "好みの形式を思い出させる。"}
+{"segment_id": "seg_0008", "start": 18.32, "end": 22.925, "text": "そんな繰り返しを解決するのが Skill です。"}
+{"segment_id": "seg_0009", "start": 21.439, "end": 24.72, "text": "Skill は Claude に"}
+{"segment_id": "seg_0010", "start": 22.925, "end": 26.32, "text": "やり方を一度だけ教えるための、"}
+{"segment_id": "seg_0011", "start": 24.72, "end": 30.599, "text": "Markdown ファイルです。"}
+{"segment_id": "seg_0012", "start": 26.32, "end": 30.599, "text": "関連するときに Claude が自動で使います。"}
+{"segment_id": "seg_0013", "start": 32.8, "end": 36.48, "text": "Agent Skill は、"}
+{"segment_id": "seg_0014", "start": 34.32, "end": 38.64, "text": "指示やスクリプト、リソースをまとめたフォルダです。"}
+{"segment_id": "seg_0015", "start": 36.48, "end": 41.12, "text": "これを Claude が見つけて使うことで、"}
+{"segment_id": "seg_0016", "start": 38.64, "end": 44.16, "text": "より正確かつ効率的に作業できます。"}
+{"segment_id": "seg_0017", "start": 41.12, "end": 46.96, "text": "Claude Code では、まず skill の MD ファイルがあります。"}
+{"segment_id": "seg_0018", "start": 44.16, "end": 49.2, "text": "その description を見て、Claude は"}
+{"segment_id": "seg_0019", "start": 46.96, "end": 51.92, "text": "その Skill を使うべきか判断します。"}
+{"segment_id": "seg_0020", "start": 49.2, "end": 53.76, "text": "たとえば Claude に、この PR をレビューしてと頼むと、"}
+{"segment_id": "seg_0021", "start": 51.92, "end": 57.039, "text": "その依頼を利用可能な Skill の説明と照合し、"}
+{"segment_id": "seg_0022", "start": 53.76, "end": 58.879, "text": "合うものを見つけます。"}
+{"segment_id": "seg_0023", "start": 57.039, "end": 61.039, "text": "Claude は依頼内容を読み、"}
+{"segment_id": "seg_0024", "start": 58.879, "end": 65.239, "text": "すべての Skill の説明と比べて、"}
+{"segment_id": "seg_0025", "start": 61.039, "end": 65.239, "text": "一致するものを有効化します。"}
+{"segment_id": "seg_0026", "start": 65.519, "end": 71.04, "text": "Skill は、使う人に応じて"}
+{"segment_id": "seg_0027", "start": 67.84, "end": 72.96, "text": "いくつかの場所に保存できます。個人用の Skill は、"}
+{"segment_id": "seg_0028", "start": 71.04, "end": 75.119, "text": "ホーム"}
+{"segment_id": "seg_0029", "start": 72.96, "end": 77.6, "text": "ディレクトリの .claude/skills に置きます。"}
+{"segment_id": "seg_0030", "start": 75.119, "end": 79.68, "text": "すると、どのプロジェクトでも使えます。"}
+{"segment_id": "seg_0031", "start": 77.6, "end": 81.439, "text": "ここには、あなたの好みや"}
+{"segment_id": "seg_0032", "start": 79.68, "end": 84.72, "text": "コミットメッセージの書き方、ドキュメント形式、"}
+{"segment_id": "seg_0033", "start": 81.439, "end": 87.6, "text": "コード説明の好みなどを入れます。"}
+{"segment_id": "seg_0034", "start": 84.72, "end": 89.36, "text": "プロジェクト用の Skill は .claude/skills に置き、"}
+{"segment_id": "seg_0035", "start": 87.6, "end": 91.36, "text": "それはリポジトリのルート"}
+{"segment_id": "seg_0036", "start": 89.36, "end": 92.96, "text": "ディレクトリの中にあります。"}
+{"segment_id": "seg_0037", "start": 91.36, "end": 94.479, "text": "そのリポジトリをクローンした人は、"}
+{"segment_id": "seg_0038", "start": 92.96, "end": 96.32, "text": "自動でその Skill を使えます。"}
+{"segment_id": "seg_0039", "start": 94.479, "end": 98.96, "text": "ここにはチームの標準を入れます。たとえば、"}
+{"segment_id": "seg_0040", "start": 96.32, "end": 103.04, "text": "会社のブランドガイドラインや、よく使うフォント、"}
+{"segment_id": "seg_0041", "start": 98.96, "end": 105.6, "text": "Web デザインで使う色などです。"}
+{"segment_id": "seg_0042", "start": 103.04, "end": 107.84, "text": "Claude Code には、挙動をカスタマイズする方法が"}
+{"segment_id": "seg_0043", "start": 105.6, "end": 111.04, "text": "いくつかあります。Skill が特別なのは、"}
+{"segment_id": "seg_0044", "start": 107.84, "end": 113.04, "text": "自動で動き、しかもタスク別だからです。"}
+{"segment_id": "seg_0045", "start": 111.04, "end": 115.6, "text": "CLAUDE.md ファイルは"}
+{"segment_id": "seg_0046", "start": 113.04, "end": 117.84, "text": "すべての会話で読み込まれます。もし Claude に常に"}
+{"segment_id": "seg_0047", "start": 115.6, "end": 120.32, "text": "TypeScript の strict mode を使わせたいなら、"}
+{"segment_id": "seg_0048", "start": 117.84, "end": 122.32, "text": "それは CLAUDE.md に書きます。一方 Skill は、"}
+{"segment_id": "seg_0049", "start": 120.32, "end": 125.2, "text": "依頼内容に合ったときだけ読み込まれます。"}
+{"segment_id": "seg_0050", "start": 122.32, "end": 127.04, "text": "読み込むのは名前と description だけです。"}
+{"segment_id": "seg_0051", "start": 125.2, "end": 129.759, "text": "だから、"}
+{"segment_id": "seg_0052", "start": 127.04, "end": 131.52, "text": "コンテキスト全体を圧迫しません。"}
+{"segment_id": "seg_0053", "start": 129.759, "end": 134.319, "text": "PR レビュー用のチェックリストを"}
+{"segment_id": "seg_0054", "start": 131.52, "end": 137.36, "text": "デバッグ中ずっと入れておく必要はありません。"}
+{"segment_id": "seg_0055", "start": 134.319, "end": 139.76, "text": "レビューを頼んだときだけ読み込まれます。"}
+{"segment_id": "seg_0056", "start": 137.36, "end": 142.959, "text": "スラッシュコマンドは自分で打つ必要があります。"}
+{"segment_id": "seg_0057", "start": 139.76, "end": 147.08, "text": "でも Skill は違います。Claude が"}
+{"segment_id": "seg_0058", "start": 142.959, "end": 147.08, "text": "状況を認識すると自動で適用します。"}
+{"segment_id": "seg_0059", "start": 147.599, "end": 151.2, "text": "Skill が特に向いているのは、"}
+{"segment_id": "seg_0060", "start": 149.36, "end": 154.08, "text": "特定の作業にだけ効く専門知識です。"}
+{"segment_id": "seg_0061", "start": 151.2, "end": 156.72, "text": "たとえば、チームのコードレビュー基準や、"}
+{"segment_id": "seg_0062", "start": 154.08, "end": 159.12, "text": "好みのコミットメッセージ形式、"}
+{"segment_id": "seg_0063", "start": 156.72, "end": 162.12, "text": "組織のブランドガイドラインなどです。"}
+{"segment_id": "seg_0064", "start": 159.12, "end": 162.12, "text": "そうしたものに向いています。"}
+{"segment_id": "seg_0065", "start": 162.879, "end": 166.879, "text": "同じことを何度も"}
+{"segment_id": "seg_0066", "start": 165.04, "end": 169.28, "text": "Claude に説明していると感じたら、"}
+{"segment_id": "seg_0067", "start": 166.879, "end": 172.28, "text": "それはもう、書かれるのを待っている"}
+{"segment_id": "seg_0068", "start": 169.28, "end": 172.28, "text": "Skill かもしれません。"}

@@ -1,0 +1,484 @@
+{
+  "video_id": "bjdBVZa66oU",
+  "language": "English (auto-generated)",
+  "language_code": "en",
+  "is_generated": true,
+  "segments": [
+    {
+      "segment_id": "seg_0001",
+      "start": 3.679,
+      "end": 7.12,
+      "duration": 3.441,
+      "text": "Every time you explain your team's"
+    },
+    {
+      "segment_id": "seg_0002",
+      "start": 5.2,
+      "end": 9.519,
+      "duration": 4.319,
+      "text": "coding standards to Claude, you're"
+    },
+    {
+      "segment_id": "seg_0003",
+      "start": 7.12,
+      "end": 12.16,
+      "duration": 5.04,
+      "text": "repeating yourself."
+    },
+    {
+      "segment_id": "seg_0004",
+      "start": 9.519,
+      "end": 13.84,
+      "duration": 4.321,
+      "text": "Every PR review, you redescribe how you"
+    },
+    {
+      "segment_id": "seg_0005",
+      "start": 12.16,
+      "end": 16.08,
+      "duration": 3.92,
+      "text": "want feedback [music] structured. Every"
+    },
+    {
+      "segment_id": "seg_0006",
+      "start": 13.84,
+      "end": 18.32,
+      "duration": 4.48,
+      "text": "commit message, you remind Claude of"
+    },
+    {
+      "segment_id": "seg_0007",
+      "start": 16.08,
+      "end": 21.439,
+      "duration": 5.359,
+      "text": "your preferred format,"
+    },
+    {
+      "segment_id": "seg_0008",
+      "start": 18.32,
+      "end": 22.925,
+      "duration": 4.605,
+      "text": "and skills fix this. A skill is a"
+    },
+    {
+      "segment_id": "seg_0009",
+      "start": 21.439,
+      "end": 24.72,
+      "duration": 3.281,
+      "text": "markdown file that teaches Claude"
+    },
+    {
+      "segment_id": "seg_0010",
+      "start": 22.925,
+      "end": 26.32,
+      "duration": 3.395,
+      "text": "[music] how to do something once, and"
+    },
+    {
+      "segment_id": "seg_0011",
+      "start": 24.72,
+      "end": 30.599,
+      "duration": 5.879,
+      "text": "Claude applies that knowledge"
+    },
+    {
+      "segment_id": "seg_0012",
+      "start": 26.32,
+      "end": 30.599,
+      "duration": 4.279,
+      "text": "automatically whenever it's relevant."
+    },
+    {
+      "segment_id": "seg_0013",
+      "start": 32.8,
+      "end": 36.48,
+      "duration": 3.68,
+      "text": "Agent skills are folders of"
+    },
+    {
+      "segment_id": "seg_0014",
+      "start": 34.32,
+      "end": 38.64,
+      "duration": 4.32,
+      "text": "instructions, scripts, and resources"
+    },
+    {
+      "segment_id": "seg_0015",
+      "start": 36.48,
+      "end": 41.12,
+      "duration": 4.64,
+      "text": "that Asia can discover and use to do"
+    },
+    {
+      "segment_id": "seg_0016",
+      "start": 38.64,
+      "end": 44.16,
+      "duration": 5.52,
+      "text": "things more accurately and efficiently."
+    },
+    {
+      "segment_id": "seg_0017",
+      "start": 41.12,
+      "end": 46.96,
+      "duration": 5.84,
+      "text": "With Claw Code, we have the skill MD"
+    },
+    {
+      "segment_id": "seg_0018",
+      "start": 44.16,
+      "end": 49.2,
+      "duration": 5.04,
+      "text": "file. The description is how Claw"
+    },
+    {
+      "segment_id": "seg_0019",
+      "start": 46.96,
+      "end": 51.92,
+      "duration": 4.96,
+      "text": "decides whether to use the skill. When"
+    },
+    {
+      "segment_id": "seg_0020",
+      "start": 49.2,
+      "end": 53.76,
+      "duration": 4.56,
+      "text": "you ask Claude to review this PR, it"
+    },
+    {
+      "segment_id": "seg_0021",
+      "start": 51.92,
+      "end": 57.039,
+      "duration": 5.119,
+      "text": "matches your request against available"
+    },
+    {
+      "segment_id": "seg_0022",
+      "start": 53.76,
+      "end": 58.879,
+      "duration": 5.119,
+      "text": "skill descriptions and finds this one."
+    },
+    {
+      "segment_id": "seg_0023",
+      "start": 57.039,
+      "end": 61.039,
+      "duration": 4.0,
+      "text": "Claude reads your request, compares it"
+    },
+    {
+      "segment_id": "seg_0024",
+      "start": 58.879,
+      "end": 65.239,
+      "duration": 6.36,
+      "text": "to all available skill descriptions, and"
+    },
+    {
+      "segment_id": "seg_0025",
+      "start": 61.039,
+      "end": 65.239,
+      "duration": 4.2,
+      "text": "activates the ones that match."
+    },
+    {
+      "segment_id": "seg_0026",
+      "start": 65.519,
+      "end": 71.04,
+      "duration": 5.521,
+      "text": "You can store skills in a few places"
+    },
+    {
+      "segment_id": "seg_0027",
+      "start": 67.84,
+      "end": 72.96,
+      "duration": 5.12,
+      "text": "depending on who needs them. Personal"
+    },
+    {
+      "segment_id": "seg_0028",
+      "start": 71.04,
+      "end": 75.119,
+      "duration": 4.079,
+      "text": "skills go in the home"
+    },
+    {
+      "segment_id": "seg_0029",
+      "start": 72.96,
+      "end": 77.6,
+      "duration": 4.64,
+      "text": "directory.cloud/skills"
+    },
+    {
+      "segment_id": "seg_0030",
+      "start": 75.119,
+      "end": 79.68,
+      "duration": 4.561,
+      "text": "and follow you across all your project."
+    },
+    {
+      "segment_id": "seg_0031",
+      "start": 77.6,
+      "end": 81.439,
+      "duration": 3.839,
+      "text": "These are your preferences, your commit"
+    },
+    {
+      "segment_id": "seg_0032",
+      "start": 79.68,
+      "end": 84.72,
+      "duration": 5.04,
+      "text": "message style, your documentation"
+    },
+    {
+      "segment_id": "seg_0033",
+      "start": 81.439,
+      "end": 87.6,
+      "duration": 6.161,
+      "text": "format, how you like code explained."
+    },
+    {
+      "segment_id": "seg_0034",
+      "start": 84.72,
+      "end": 89.36,
+      "duration": 4.64,
+      "text": "Project skills go in the do.claw/skills"
+    },
+    {
+      "segment_id": "seg_0035",
+      "start": 87.6,
+      "end": 91.36,
+      "duration": 3.76,
+      "text": "inside of the root directory of your"
+    },
+    {
+      "segment_id": "seg_0036",
+      "start": 89.36,
+      "end": 92.96,
+      "duration": 3.6,
+      "text": "repository. Anyone who clones the"
+    },
+    {
+      "segment_id": "seg_0037",
+      "start": 91.36,
+      "end": 94.479,
+      "duration": 3.119,
+      "text": "repository gets these skills"
+    },
+    {
+      "segment_id": "seg_0038",
+      "start": 92.96,
+      "end": 96.32,
+      "duration": 3.36,
+      "text": "automatically. This is where team"
+    },
+    {
+      "segment_id": "seg_0039",
+      "start": 94.479,
+      "end": 98.96,
+      "duration": 4.481,
+      "text": "standards live, like your company's"
+    },
+    {
+      "segment_id": "seg_0040",
+      "start": 96.32,
+      "end": 103.04,
+      "duration": 6.72,
+      "text": "brand guidelines, preferred fonts, and"
+    },
+    {
+      "segment_id": "seg_0041",
+      "start": 98.96,
+      "end": 105.6,
+      "duration": 6.64,
+      "text": "colors that you use for web design."
+    },
+    {
+      "segment_id": "seg_0042",
+      "start": 103.04,
+      "end": 107.84,
+      "duration": 4.8,
+      "text": "Cloud code has several ways to customize"
+    },
+    {
+      "segment_id": "seg_0043",
+      "start": 105.6,
+      "end": 111.04,
+      "duration": 5.44,
+      "text": "behavior. Skills are unique because"
+    },
+    {
+      "segment_id": "seg_0044",
+      "start": 107.84,
+      "end": 113.04,
+      "duration": 5.2,
+      "text": "they're automatic and task specific."
+    },
+    {
+      "segment_id": "seg_0045",
+      "start": 111.04,
+      "end": 115.6,
+      "duration": 4.56,
+      "text": "CloudMD files load into every"
+    },
+    {
+      "segment_id": "seg_0046",
+      "start": 113.04,
+      "end": 117.84,
+      "duration": 4.8,
+      "text": "conversation. If you want claw to always"
+    },
+    {
+      "segment_id": "seg_0047",
+      "start": 115.6,
+      "end": 120.32,
+      "duration": 4.72,
+      "text": "use typescript strict mode that goes in"
+    },
+    {
+      "segment_id": "seg_0048",
+      "start": 117.84,
+      "end": 122.32,
+      "duration": 4.48,
+      "text": "your claw.md file. Skills on the other"
+    },
+    {
+      "segment_id": "seg_0049",
+      "start": 120.32,
+      "end": 125.2,
+      "duration": 4.88,
+      "text": "hand load on demand when they match your"
+    },
+    {
+      "segment_id": "seg_0050",
+      "start": 122.32,
+      "end": 127.04,
+      "duration": 4.72,
+      "text": "request. It only loads in the name and"
+    },
+    {
+      "segment_id": "seg_0051",
+      "start": 125.2,
+      "end": 129.759,
+      "duration": 4.559,
+      "text": "description. So it doesn't fill up your"
+    },
+    {
+      "segment_id": "seg_0052",
+      "start": 127.04,
+      "end": 131.52,
+      "duration": 4.48,
+      "text": "entire context window. Your PR review"
+    },
+    {
+      "segment_id": "seg_0053",
+      "start": 129.759,
+      "end": 134.319,
+      "duration": 4.56,
+      "text": "checklist doesn't need to be in the"
+    },
+    {
+      "segment_id": "seg_0054",
+      "start": 131.52,
+      "end": 137.36,
+      "duration": 5.84,
+      "text": "context when you're debugging. It loads"
+    },
+    {
+      "segment_id": "seg_0055",
+      "start": 134.319,
+      "end": 139.76,
+      "duration": 5.441,
+      "text": "when you actually ask for a review."
+    },
+    {
+      "segment_id": "seg_0056",
+      "start": 137.36,
+      "end": 142.959,
+      "duration": 5.599,
+      "text": "Slash commands require you to type them."
+    },
+    {
+      "segment_id": "seg_0057",
+      "start": 139.76,
+      "end": 147.08,
+      "duration": 7.32,
+      "text": "Skills don't. Claude applies them when"
+    },
+    {
+      "segment_id": "seg_0058",
+      "start": 142.959,
+      "end": 147.08,
+      "duration": 4.121,
+      "text": "it recognizes the situation."
+    },
+    {
+      "segment_id": "seg_0059",
+      "start": 147.599,
+      "end": 151.2,
+      "duration": 3.601,
+      "text": "Skills work best for specialized"
+    },
+    {
+      "segment_id": "seg_0060",
+      "start": 149.36,
+      "end": 154.08,
+      "duration": 4.72,
+      "text": "knowledge that applies to specific"
+    },
+    {
+      "segment_id": "seg_0061",
+      "start": 151.2,
+      "end": 156.72,
+      "duration": 5.52,
+      "text": "tasks, code review standards your team"
+    },
+    {
+      "segment_id": "seg_0062",
+      "start": 154.08,
+      "end": 159.12,
+      "duration": 5.04,
+      "text": "follows, commit message formats that you"
+    },
+    {
+      "segment_id": "seg_0063",
+      "start": 156.72,
+      "end": 162.12,
+      "duration": 5.4,
+      "text": "prefer, brand guidelines of your"
+    },
+    {
+      "segment_id": "seg_0064",
+      "start": 159.12,
+      "end": 162.12,
+      "duration": 3.0,
+      "text": "organization."
+    },
+    {
+      "segment_id": "seg_0065",
+      "start": 162.879,
+      "end": 166.879,
+      "duration": 4.0,
+      "text": "If you find yourself explaining the same"
+    },
+    {
+      "segment_id": "seg_0066",
+      "start": 165.04,
+      "end": 169.28,
+      "duration": 4.24,
+      "text": "thing [music] to Claude repeatedly,"
+    },
+    {
+      "segment_id": "seg_0067",
+      "start": 166.879,
+      "end": 172.28,
+      "duration": 5.401,
+      "text": "well, that's a skill waiting to be"
+    },
+    {
+      "segment_id": "seg_0068",
+      "start": 169.28,
+      "end": 172.28,
+      "duration": 3.0,
+      "text": "written."
+    }
+  ]
+}
