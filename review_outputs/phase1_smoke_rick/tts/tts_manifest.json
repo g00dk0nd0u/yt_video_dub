@@ -3,7 +3,7 @@
   "base_url": "http://127.0.0.1:10101",
   "speaker_id": 1937616896,
   "total_segments": 61,
-  "generated_at": "2026-05-07T04:35:04.171715+00:00",
+  "generated_at": "2026-05-07T04:45:05.469487+00:00",
   "items": [
     {
       "index": 1,
@@ -21,7 +21,7 @@
       "end": 21.88,
       "text": "私たちはもう他人じゃない。",
       "wav_path": "tts/segment_000002.wav",
-      "status": "reused"
+      "status": "generated"
     },
     {
       "index": 3,
@@ -30,7 +30,7 @@
       "end": 26.96,
       "text": "君もそのルールを知っている。私もだ。",
       "wav_path": "tts/segment_000003.wav",
-      "status": "reused"
+      "status": "generated"
     },
     {
       "index": 4,
@@ -190,7 +190,7 @@
       "segment_id": "seg_0021",
       "start": 87.36,
       "end": 89.32,
-      "text": "♪ Never gonna let you down ♪",
+      "text": "♪ 君をがっかりさせない ♪",
       "wav_path": "tts/segment_000021.wav",
       "status": "generated"
     },
@@ -199,7 +199,7 @@
       "segment_id": "seg_0022",
       "start": 89.44,
       "end": 93.72,
-      "text": "♪ Never gonna run around\nand desert you ♪",
+      "text": "♪ そばを離れて\n見捨てたりしない ♪",
       "wav_path": "tts/segment_000022.wav",
       "status": "generated"
     },
@@ -208,7 +208,7 @@
       "segment_id": "seg_0023",
       "start": 93.8,
       "end": 95.6,
-      "text": "♪ Never gonna make you cry ♪",
+      "text": "♪ 君を泣かせない ♪",
       "wav_path": "tts/segment_000023.wav",
       "status": "generated"
     },
@@ -217,7 +217,7 @@
       "segment_id": "seg_0024",
       "start": 95.76,
       "end": 98.0,
-      "text": "♪ Never gonna say goodbye ♪",
+      "text": "♪ さよならは言わない ♪",
       "wav_path": "tts/segment_000024.wav",
       "status": "generated"
     },
@@ -226,7 +226,7 @@
       "segment_id": "seg_0025",
       "start": 98.08,
       "end": 102.04,
-      "text": "♪ Never gonna tell a lie\nand hurt you ♪",
+      "text": "♪ 嘘をついて\n傷つけたりしない ♪",
       "wav_path": "tts/segment_000025.wav",
       "status": "generated"
     },
@@ -235,7 +235,7 @@
       "segment_id": "seg_0026",
       "start": 102.2,
       "end": 104.12,
-      "text": "♪ Never gonna give you up ♪",
+      "text": "♪ 君を離さない ♪",
       "wav_path": "tts/segment_000026.wav",
       "status": "generated"
     },
@@ -244,7 +244,7 @@
       "segment_id": "seg_0027",
       "start": 104.28,
       "end": 106.36,
-      "text": "♪ Never gonna let you down ♪",
+      "text": "♪ 君をがっかりさせない ♪",
       "wav_path": "tts/segment_000027.wav",
       "status": "generated"
     },
@@ -253,7 +253,7 @@
       "segment_id": "seg_0028",
       "start": 106.48,
       "end": 110.08,
-      "text": "♪ Never gonna run around\nand desert you ♪",
+      "text": "♪ そばを離れて\n見捨てたりしない ♪",
       "wav_path": "tts/segment_000028.wav",
       "status": "generated"
     },
@@ -262,7 +262,7 @@
       "segment_id": "seg_0029",
       "start": 110.76,
       "end": 112.72,
-      "text": "♪ Never gonna make you cry ♪",
+      "text": "♪ 君を泣かせない ♪",
       "wav_path": "tts/segment_000029.wav",
       "status": "generated"
     },
@@ -271,7 +271,7 @@
       "segment_id": "seg_0030",
       "start": 112.8,
       "end": 114.68,
-      "text": "♪ Never gonna say goodbye ♪",
+      "text": "♪ さよならは言わない ♪",
       "wav_path": "tts/segment_000030.wav",
       "status": "generated"
     },
@@ -280,7 +280,7 @@
       "segment_id": "seg_0031",
       "start": 114.96,
       "end": 118.76,
-      "text": "♪ Never gonna tell a lie\nand hurt you ♪",
+      "text": "♪ 嘘をついて\n傷つけたりしない ♪",
       "wav_path": "tts/segment_000031.wav",
       "status": "generated"
     },
@@ -289,7 +289,7 @@
       "segment_id": "seg_0032",
       "start": 119.84,
       "end": 122.96,
-      "text": "♪ (Ooh, give you up) ♪",
+      "text": "♪ （ウー 君を離さない）♪",
       "wav_path": "tts/segment_000032.wav",
       "status": "generated"
     },
@@ -298,7 +298,7 @@
       "segment_id": "seg_0033",
       "start": 123.72,
       "end": 127.36,
-      "text": "♪ (Ooh, give you up) ♪",
+      "text": "♪ （ウー 君を離さない）♪",
       "wav_path": "tts/segment_000033.wav",
       "status": "generated"
     },
@@ -307,7 +307,7 @@
       "segment_id": "seg_0034",
       "start": 128.48,
       "end": 130.12,
-      "text": "♪ Never gonna give,\nnever gonna give ♪",
+      "text": "♪ 決して手放さない\n決して手放さない ♪",
       "wav_path": "tts/segment_000034.wav",
       "status": "generated"
     },
@@ -316,7 +316,7 @@
       "segment_id": "seg_0035",
       "start": 130.24,
       "end": 131.56,
-      "text": "♪ (Give you up) ♪",
+      "text": "♪ （君を離さない）♪",
       "wav_path": "tts/segment_000035.wav",
       "status": "generated"
     },
@@ -325,7 +325,7 @@
       "segment_id": "seg_0036",
       "start": 132.48,
       "end": 134.24,
-      "text": "♪ Never gonna give,\nnever gonna give ♪",
+      "text": "♪ 決して手放さない\n決して手放さない ♪",
       "wav_path": "tts/segment_000036.wav",
       "status": "generated"
     },
@@ -334,7 +334,7 @@
       "segment_id": "seg_0037",
       "start": 134.36,
       "end": 135.92,
-      "text": "♪ (Give you up) ♪",
+      "text": "♪ （君を離さない）♪",
       "wav_path": "tts/segment_000037.wav",
       "status": "generated"
     },
@@ -343,7 +343,7 @@
       "segment_id": "seg_0038",
       "start": 136.76,
       "end": 141.08,
-      "text": "♪ We've known each other\nfor so long ♪",
+      "text": "♪ もう長いあいだ\n僕らは知っている ♪",
       "wav_path": "tts/segment_000038.wav",
       "status": "generated"
     },
@@ -352,7 +352,7 @@
       "segment_id": "seg_0039",
       "start": 141.2,
       "end": 145.2,
-      "text": "♪ Your heart's been aching\nbut you're too shy to say it ♪",
+      "text": "♪ 胸が痛んでいるのに\n君は言い出せない ♪",
       "wav_path": "tts/segment_000039.wav",
       "status": "generated"
     },
@@ -361,7 +361,7 @@
       "segment_id": "seg_0040",
       "start": 145.28,
       "end": 149.12,
-      "text": "♪ Inside we both know\nwhat's been going ♪",
+      "text": "♪ 二人とも分かってる\n何が続いてきたか ♪",
       "wav_path": "tts/segment_000040.wav",
       "status": "generated"
     },
@@ -370,7 +370,7 @@
       "segment_id": "seg_0041",
       "start": 149.52,
       "end": 153.2,
-      "text": "♪ We know the game\nand we're gonna play it ♪",
+      "text": "♪ ルールは分かってる\nそして進んでいく ♪",
       "wav_path": "tts/segment_000041.wav",
       "status": "generated"
     },
@@ -379,7 +379,7 @@
       "segment_id": "seg_0042",
       "start": 153.36,
       "end": 158.04,
-      "text": "♪ I just wanna tell you\nhow I'm feeling ♪",
+      "text": "♪ ただ君に伝えたい\nこの気持ちを ♪",
       "wav_path": "tts/segment_000042.wav",
       "status": "generated"
     },
@@ -388,7 +388,7 @@
       "segment_id": "seg_0043",
       "start": 158.64,
       "end": 161.32,
-      "text": "♪ Gotta make you understand ♪",
+      "text": "♪ 分かってほしいんだ ♪",
       "wav_path": "tts/segment_000043.wav",
       "status": "generated"
     },
@@ -397,7 +397,7 @@
       "segment_id": "seg_0044",
       "start": 161.4,
       "end": 163.36,
-      "text": "♪ Never gonna give you up ♪",
+      "text": "♪ 君を離さない ♪",
       "wav_path": "tts/segment_000044.wav",
       "status": "generated"
     },
@@ -406,7 +406,7 @@
       "segment_id": "seg_0045",
       "start": 163.44,
       "end": 165.64,
-      "text": "♪ Never gonna let you down ♪",
+      "text": "♪ 君をがっかりさせない ♪",
       "wav_path": "tts/segment_000045.wav",
       "status": "generated"
     },
@@ -415,7 +415,7 @@
       "segment_id": "seg_0046",
       "start": 165.72,
       "end": 169.72,
-      "text": "♪ Never gonna run around\nand desert you ♪",
+      "text": "♪ そばを離れて\n見捨てたりしない ♪",
       "wav_path": "tts/segment_000046.wav",
       "status": "generated"
     },
@@ -424,7 +424,7 @@
       "segment_id": "seg_0047",
       "start": 169.8,
       "end": 171.64,
-      "text": "♪ Never gonna make you cry ♪",
+      "text": "♪ 君を泣かせない ♪",
       "wav_path": "tts/segment_000047.wav",
       "status": "generated"
     },
@@ -433,7 +433,7 @@
       "segment_id": "seg_0048",
       "start": 171.8,
       "end": 173.96,
-      "text": "♪ Never gonna say goodbye ♪",
+      "text": "♪ さよならは言わない ♪",
       "wav_path": "tts/segment_000048.wav",
       "status": "generated"
     },
@@ -442,7 +442,7 @@
       "segment_id": "seg_0049",
       "start": 174.04,
       "end": 177.6,
-      "text": "♪ Never gonna tell a lie\nand hurt you ♪",
+      "text": "♪ 嘘をついて\n傷つけたりしない ♪",
       "wav_path": "tts/segment_000049.wav",
       "status": "generated"
     },
@@ -451,7 +451,7 @@
       "segment_id": "seg_0050",
       "start": 178.2,
       "end": 180.24,
-      "text": "♪ Never gonna give you up ♪",
+      "text": "♪ 君を離さない ♪",
       "wav_path": "tts/segment_000050.wav",
       "status": "generated"
     },
@@ -460,7 +460,7 @@
       "segment_id": "seg_0051",
       "start": 180.32,
       "end": 182.44,
-      "text": "♪ Never gonna let you down ♪",
+      "text": "♪ 君をがっかりさせない ♪",
       "wav_path": "tts/segment_000051.wav",
       "status": "generated"
     },
@@ -469,7 +469,7 @@
       "segment_id": "seg_0052",
       "start": 182.52,
       "end": 186.64,
-      "text": "♪ Never gonna run around\nand desert you ♪",
+      "text": "♪ そばを離れて\n見捨てたりしない ♪",
       "wav_path": "tts/segment_000052.wav",
       "status": "generated"
     },
@@ -478,7 +478,7 @@
       "segment_id": "seg_0053",
       "start": 186.72,
       "end": 188.72,
-      "text": "♪ Never gonna make you cry ♪",
+      "text": "♪ 君を泣かせない ♪",
       "wav_path": "tts/segment_000053.wav",
       "status": "generated"
     },
@@ -487,7 +487,7 @@
       "segment_id": "seg_0054",
       "start": 188.84,
       "end": 190.72,
-      "text": "♪ Never gonna say goodbye ♪",
+      "text": "♪ さよならは言わない ♪",
       "wav_path": "tts/segment_000054.wav",
       "status": "generated"
     },
@@ -496,7 +496,7 @@
       "segment_id": "seg_0055",
       "start": 190.84,
       "end": 195.2,
-      "text": "♪ Never gonna tell a lie\nand hurt you ♪",
+      "text": "♪ 嘘をついて\n傷つけたりしない ♪",
       "wav_path": "tts/segment_000055.wav",
       "status": "generated"
     },
@@ -505,7 +505,7 @@
       "segment_id": "seg_0056",
       "start": 195.28,
       "end": 197.12,
-      "text": "♪ Never gonna give you up ♪",
+      "text": "♪ 君を離さない ♪",
       "wav_path": "tts/segment_000056.wav",
       "status": "generated"
     },
@@ -514,7 +514,7 @@
       "segment_id": "seg_0057",
       "start": 197.2,
       "end": 199.24,
-      "text": "♪ Never gonna let you down ♪",
+      "text": "♪ 君をがっかりさせない ♪",
       "wav_path": "tts/segment_000057.wav",
       "status": "generated"
     },
@@ -523,7 +523,7 @@
       "segment_id": "seg_0058",
       "start": 199.4,
       "end": 203.12,
-      "text": "♪ Never gonna run around\nand desert you ♪",
+      "text": "♪ そばを離れて\n見捨てたりしない ♪",
       "wav_path": "tts/segment_000058.wav",
       "status": "generated"
     },
@@ -532,7 +532,7 @@
       "segment_id": "seg_0059",
       "start": 203.36,
       "end": 205.6,
-      "text": "♪ Never gonna make you cry ♪",
+      "text": "♪ 君を泣かせない ♪",
       "wav_path": "tts/segment_000059.wav",
       "status": "generated"
     },
@@ -541,7 +541,7 @@
       "segment_id": "seg_0060",
       "start": 205.68,
       "end": 207.84,
-      "text": "♪ Never gonna say goodbye ♪",
+      "text": "♪ さよならは言わない ♪",
       "wav_path": "tts/segment_000060.wav",
       "status": "generated"
     },
@@ -550,7 +550,7 @@
       "segment_id": "seg_0061",
       "start": 207.92,
       "end": 211.32,
-      "text": "♪ Never gonna tell a lie\nand hurt you ♪",
+      "text": "♪ 嘘をついて\n傷つけたりしない ♪",
       "wav_path": "tts/segment_000061.wav",
       "status": "generated"
     }
