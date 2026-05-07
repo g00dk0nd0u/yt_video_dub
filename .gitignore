@@ -1,0 +1,33 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build and packaging artifacts
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Jupyter / notebook
+.ipynb_checkpoints/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local logs and temp files
+*.log
+*.tmp
+*.temp
+
+# Ignore all contents under data
+data/**
