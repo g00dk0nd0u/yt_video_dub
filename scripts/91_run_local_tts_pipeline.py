@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the local TTS and dub-audio workflow with repo-friendly defaults."""
+"""Run the local dubbing workflow with repo-friendly defaults."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ DEFAULT_SPEAKER_ID = 1937616896
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run translated-segment rebuild, TTS, dub-audio build, and optional video mux."
+        description="Run translated text rebuild, audio generation, dub-audio build, and optional video creation."
     )
     parser.add_argument(
         "--job-id",
@@ -38,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--speaker-id",
         default=DEFAULT_SPEAKER_ID,
         type=int,
-        help=f"Speaker ID to use for TTS generation. Default: {DEFAULT_SPEAKER_ID}",
+        help=f"Speaker ID to use for speech generation. Default: {DEFAULT_SPEAKER_ID}",
     )
     parser.add_argument(
         "--mux-video",
@@ -63,12 +63,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--start-index",
         type=int,
-        help="1-based translated segment index to start TTS from.",
+        help="1-based translated segment index to start audio generation from.",
     )
     parser.add_argument(
         "--end-index",
         type=int,
-        help="1-based translated segment index to end TTS at.",
+        help="1-based translated segment index to end audio generation at.",
     )
     parser.add_argument(
         "--skip-build-translated",
@@ -109,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.skip_build_translated:
         _run_step(
-            "Step 1: build translated segments",
+            "Step 1: build translated text data",
             "04_build_translated_segments.py",
             common_job_args,
         )
@@ -134,22 +134,22 @@ def main(argv: list[str] | None = None) -> int:
         tts_args.extend(["--end-index", str(args.end_index)])
 
     _run_step(
-        "Step 2: generate TTS segments",
+        "Step 2: generate Japanese audio segments",
         "06_generate_tts_segments.py",
         tts_args,
     )
     _run_step(
-        "Step 3: build dub audio",
+        "Step 3: combine Japanese audio",
         "07_build_dub_audio.py",
         common_job_args,
     )
     if args.mux_video:
         _run_step(
-            "Step 4: mux dubbed video",
+            "Step 4: create dubbed video",
             "08_mux_video.py",
             common_job_args + ["--ffmpeg-bin", args.ffmpeg_bin],
         )
-    print("Local TTS pipeline completed.")
+    print("Video build completed.")
     print(f"Lightweight files under output/{args.job_id}/ (*.json, *.txt, *.srt) can be committed.")
     return 0
 
