@@ -1,0 +1,539 @@
+1
+00:00:00,657 --> 00:00:03,227
+Today, we're excited to introduce the Codex app.
+
+2
+00:00:03,620 --> 00:00:05,771
+Now you have one place to manage your
+
+3
+00:00:05,771 --> 00:00:08,280
+projects and delegate real work to Codex.
+
+4
+00:00:08,990 --> 00:00:10,902
+Instead of juggling terminal windows,
+
+5
+00:00:10,902 --> 00:00:12,525
+you get a single command center to
+
+6
+00:00:12,525 --> 00:00:13,800
+run and supervise agents.
+
+7
+00:00:14,580 --> 00:00:15,400
+Let me show you how it works.
+
+8
+00:00:16,680 --> 00:00:18,080
+On the left, you can see my projects.
+
+9
+00:00:18,680 --> 00:00:19,587
+And for each of them,
+
+10
+00:00:19,587 --> 00:00:21,400
+I can see the tasks that Codex completed,
+
+11
+00:00:22,000 --> 00:00:23,920
+and some of them are running live as we speak.
+
+12
+00:00:24,600 --> 00:00:25,694
+On the right, this is the main
+
+13
+00:00:25,694 --> 00:00:26,560
+conversation screen.
+
+14
+00:00:27,380 --> 00:00:28,814
+Let's start with this iOS app I've
+
+15
+00:00:28,814 --> 00:00:29,480
+been building.
+
+16
+00:00:29,500 --> 00:00:31,576
+It tracks the ISS in real time and
+
+17
+00:00:31,576 --> 00:00:34,420
+let's say I want to build new features for it.
+
+18
+00:00:35,210 --> 00:00:36,919
+I can type or better yet I can
+
+19
+00:00:36,919 --> 00:00:38,851
+just speak my mind and dictate.
+
+20
+00:00:38,851 --> 00:00:40,708
+Add a new screen that shows the
+
+21
+00:00:40,708 --> 00:00:43,160
+Astronomy Picture of the Day from NASA.
+
+22
+00:00:44,520 --> 00:00:46,358
+And that's it Codex is now taking care
+
+23
+00:00:46,358 --> 00:00:47,365
+of all that for me and
+
+24
+00:00:47,365 --> 00:00:49,440
+will figure out the right APIs to build it.
+
+25
+00:00:50,740 --> 00:00:52,285
+While that's running let's take a look
+
+26
+00:00:52,285 --> 00:00:53,782
+at another project I've been meaning
+
+27
+00:00:53,782 --> 00:00:54,700
+to migrate for a while.
+
+28
+00:00:54,720 --> 00:00:57,272
+Here Codex is updating all the
+
+29
+00:00:57,272 --> 00:01:00,232
+dependencies and in that task it's
+
+30
+00:01:00,232 --> 00:01:02,945
+even migrating from WebSockets to
+
+31
+00:01:02,945 --> 00:01:03,506
+WebRTC
+
+32
+00:01:03,506 --> 00:01:06,254
+for our speech-to-speech integration.
+
+33
+00:01:06,254 --> 00:01:08,139
+Now some of these tasks take a while,
+
+34
+00:01:08,139 --> 00:01:09,171
+minutes if not hours,
+
+35
+00:01:09,171 --> 00:01:10,720
+especially when you're working
+
+36
+00:01:10,720 --> 00:01:12,255
+on a large codebase. And
+
+37
+00:01:12,255 --> 00:01:14,328
+that's a big shift in how we build
+
+38
+00:01:14,328 --> 00:01:15,480
+software. Now you
+
+39
+00:01:15,480 --> 00:01:17,410
+can supervise your agents and
+
+40
+00:01:17,410 --> 00:01:19,648
+simply check in when they're done.
+
+41
+00:01:19,648 --> 00:01:21,761
+But let's go back to our first task.
+
+42
+00:01:21,761 --> 00:01:23,707
+Here you can see how Codex has been
+
+43
+00:01:23,707 --> 00:01:24,680
+approaching the problem
+
+44
+00:01:24,700 --> 00:01:26,425
+the steps it's taking and
+
+45
+00:01:26,425 --> 00:01:28,313
+the progress as it goes. And
+
+46
+00:01:28,313 --> 00:01:30,120
+it's done. Now if I click on
+
+47
+00:01:30,120 --> 00:01:31,718
+the right side I see the diff.
+
+48
+00:01:31,718 --> 00:01:33,715
+I can review exactly what changed in
+
+49
+00:01:33,715 --> 00:01:34,580
+the Swift code,
+
+50
+00:01:35,040 --> 00:01:36,989
+I can leave in-line comments for
+
+51
+00:01:36,989 --> 00:01:39,226
+feedback, ask for another iteration
+
+52
+00:01:39,226 --> 00:01:41,558
+or just merge if it looks right. Now if
+
+53
+00:01:41,558 --> 00:01:43,206
+I need to go deeper I can always
+
+54
+00:01:43,206 --> 00:01:44,260
+open the changes in
+
+55
+00:01:44,440 --> 00:01:46,486
+Xcode but in this case I'll just build
+
+56
+00:01:46,486 --> 00:01:48,400
+and run the app directly from here.
+
+57
+00:01:49,620 --> 00:01:51,266
+Working with the Codex app makes
+
+58
+00:01:51,266 --> 00:01:52,729
+building more fun, you know,
+
+59
+00:01:52,729 --> 00:01:53,460
+I don't have to
+
+60
+00:01:53,460 --> 00:01:55,465
+spend a lot of time editing code but
+
+61
+00:01:55,465 --> 00:01:57,440
+rather just thinking about how to
+
+62
+00:01:57,640 --> 00:01:59,010
+shape the app the way I want it
+
+63
+00:01:59,010 --> 00:02:01,180
+to be. Let's bring the iOS simulator on screen
+
+64
+00:02:01,840 --> 00:02:03,582
+and here it is. I just gave one
+
+65
+00:02:03,582 --> 00:02:04,888
+sentence to Codex and
+
+66
+00:02:04,888 --> 00:02:06,340
+it built this entire new
+
+67
+00:02:06,440 --> 00:02:08,342
+feature for me. Isn't that amazing?
+
+68
+00:02:08,342 --> 00:02:10,560
+Let's switch to another project I've been
+
+69
+00:02:10,740 --> 00:02:12,753
+working on. It's a web-based fitness
+
+70
+00:02:12,753 --> 00:02:14,960
+tracker. Well for visual tasks like this
+
+71
+00:02:15,160 --> 00:02:16,988
+one I want to stick closer to the
+
+72
+00:02:16,988 --> 00:02:18,676
+experience I'm building. So
+
+73
+00:02:18,676 --> 00:02:19,520
+by clicking on
+
+74
+00:02:19,520 --> 00:02:21,446
+top right corner I can pop the
+
+75
+00:02:21,446 --> 00:02:23,532
+conversation out like this and
+
+76
+00:02:23,532 --> 00:02:26,020
+bring Codex with me and I can dictate,
+
+77
+00:02:27,180 --> 00:02:29,496
+animate the bars to simulate progress
+
+78
+00:02:29,496 --> 00:02:31,088
+and now I'll be able in a few
+
+79
+00:02:31,088 --> 00:02:32,680
+seconds to see the changes
+
+80
+00:02:32,840 --> 00:02:35,000
+apply live, it really feels like
+
+81
+00:02:35,000 --> 00:02:37,320
+collaborating with a teammate and
+
+82
+00:02:37,320 --> 00:02:39,480
+here we go. Now another powerful
+
+83
+00:02:39,780 --> 00:02:41,809
+part of the Codex app is skills.
+
+84
+00:02:41,809 --> 00:02:43,995
+Skills let Codex connect to all of
+
+85
+00:02:43,995 --> 00:02:45,400
+your favorite tools.
+
+86
+00:02:46,200 --> 00:02:47,935
+In fact, this app was actually
+
+87
+00:02:47,935 --> 00:02:50,017
+implemented using the Figma skill,
+
+88
+00:02:50,017 --> 00:02:52,168
+which automatically used MCP behind
+
+89
+00:02:52,168 --> 00:02:54,180
+the scenes and set things up for me.
+
+90
+00:02:54,760 --> 00:02:55,940
+Let me quickly show you the design.
+
+91
+00:02:56,960 --> 00:02:58,617
+This is the homepage and if
+
+92
+00:02:58,617 --> 00:03:00,049
+I click one component,
+
+93
+00:03:00,049 --> 00:03:02,083
+for instance, you can see how the
+
+94
+00:03:02,083 --> 00:03:03,740
+spacing, the textiles and
+
+95
+00:03:03,740 --> 00:03:06,000
+all of that are defined right there.
+
+96
+00:03:06,370 --> 00:03:07,763
+So Codex has not been working from
+
+97
+00:03:07,763 --> 00:03:08,360
+a screenshot.
+
+98
+00:03:09,040 --> 00:03:10,906
+It's actually reading the structure
+
+99
+00:03:10,906 --> 00:03:12,711
+of the design file, including those
+
+100
+00:03:12,711 --> 00:03:14,637
+variables to generate real code using
+
+101
+00:03:14,637 --> 00:03:15,600
+our design system.
+
+102
+00:03:16,180 --> 00:03:18,340
+and that's why it matches the design so well.
+
+103
+00:03:19,200 --> 00:03:20,807
+Of course, you can also create your
+
+104
+00:03:20,807 --> 00:03:22,580
+own skill for yourself or for your team
+
+105
+00:03:22,970 --> 00:03:24,400
+so it can really fit your workflow.
+
+106
+00:03:24,920 --> 00:03:26,820
+Now, what's really powerful with the Codex app
+
+107
+00:03:26,930 --> 00:03:28,665
+is that you can even turn these skills
+
+108
+00:03:28,665 --> 00:03:29,560
+into automations.
+
+109
+00:03:30,260 --> 00:03:31,792
+Imagine you have tasks that you want
+
+110
+00:03:31,792 --> 00:03:33,120
+running at a specific cadence.
+
+111
+00:03:33,700 --> 00:03:36,245
+Maybe that's triaging alerts from
+
+112
+00:03:36,245 --> 00:03:39,338
+Sentry or bugs and tickets from Linear.
+
+113
+00:03:39,660 --> 00:03:41,057
+Well, you can now have that handled
+
+114
+00:03:41,057 --> 00:03:42,105
+in the background while
+
+115
+00:03:42,105 --> 00:03:43,100
+you focus on building.
+
+116
+00:03:44,200 --> 00:03:46,111
+There are many more features in the
+
+117
+00:03:46,111 --> 00:03:48,022
+Codex app, including working with
+
+118
+00:03:48,022 --> 00:03:49,340
+isolated environments
+
+119
+00:03:49,560 --> 00:03:51,447
+called worktrees, so this way you can
+
+120
+00:03:51,447 --> 00:03:53,091
+give each agent a copy of the code
+
+121
+00:03:53,091 --> 00:03:54,663
+so you don't have to worry about
+
+122
+00:03:54,663 --> 00:03:55,328
+conflicts or
+
+123
+00:03:55,328 --> 00:03:56,400
+breaking your setup.
+
+124
+00:03:57,460 --> 00:03:59,134
+You can also delegate any task,
+
+125
+00:03:59,134 --> 00:04:01,065
+especially the long-running ones,
+
+126
+00:04:01,065 --> 00:04:02,160
+to Codex in the cloud
+
+127
+00:04:02,500 --> 00:04:03,960
+with the exact same interface.
+
+128
+00:04:04,780 --> 00:04:05,940
+This was just a quick tour.
+
+129
+00:04:06,440 --> 00:04:07,940
+The Codex app is a brand new way
+
+130
+00:04:07,940 --> 00:04:08,900
+to build software.
+
+131
+00:04:09,680 --> 00:04:11,696
+For me, it means spending a lot less
+
+132
+00:04:11,696 --> 00:04:12,947
+time writing code and
+
+133
+00:04:12,947 --> 00:04:14,407
+a lot more time creating,
+
+134
+00:04:14,407 --> 00:04:16,840
+refining ideas and bringing them to life.
+
+135
+00:04:17,660 --> 00:04:19,160
+We can't wait to see what you build with it.

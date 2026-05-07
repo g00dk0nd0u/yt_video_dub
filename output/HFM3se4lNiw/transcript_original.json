@@ -1,0 +1,953 @@
+{
+  "video_id": "HFM3se4lNiw",
+  "language": "English",
+  "language_code": "en",
+  "is_generated": false,
+  "segments": [
+    {
+      "segment_id": "seg_0001",
+      "start": 0.657,
+      "end": 3.227,
+      "duration": 2.57,
+      "text": "Today, we're excited to introduce the Codex app."
+    },
+    {
+      "segment_id": "seg_0002",
+      "start": 3.62,
+      "end": 5.771,
+      "duration": 2.151,
+      "text": "Now you have one place to manage your"
+    },
+    {
+      "segment_id": "seg_0003",
+      "start": 5.771,
+      "end": 8.28,
+      "duration": 2.509,
+      "text": "projects and delegate real work to Codex."
+    },
+    {
+      "segment_id": "seg_0004",
+      "start": 8.99,
+      "end": 10.902,
+      "duration": 1.912,
+      "text": "Instead of juggling terminal windows,"
+    },
+    {
+      "segment_id": "seg_0005",
+      "start": 10.902,
+      "end": 12.525,
+      "duration": 1.623,
+      "text": "you get a single command center to"
+    },
+    {
+      "segment_id": "seg_0006",
+      "start": 12.525,
+      "end": 13.8,
+      "duration": 1.275,
+      "text": "run and supervise agents."
+    },
+    {
+      "segment_id": "seg_0007",
+      "start": 14.58,
+      "end": 15.4,
+      "duration": 0.82,
+      "text": "Let me show you how it works."
+    },
+    {
+      "segment_id": "seg_0008",
+      "start": 16.68,
+      "end": 18.08,
+      "duration": 1.4,
+      "text": "On the left, you can see my projects."
+    },
+    {
+      "segment_id": "seg_0009",
+      "start": 18.68,
+      "end": 19.587,
+      "duration": 0.907,
+      "text": "And for each of them,"
+    },
+    {
+      "segment_id": "seg_0010",
+      "start": 19.587,
+      "end": 21.4,
+      "duration": 1.813,
+      "text": "I can see the tasks that Codex completed,"
+    },
+    {
+      "segment_id": "seg_0011",
+      "start": 22.0,
+      "end": 23.92,
+      "duration": 1.92,
+      "text": "and some of them are running live as we speak."
+    },
+    {
+      "segment_id": "seg_0012",
+      "start": 24.6,
+      "end": 25.694,
+      "duration": 1.094,
+      "text": "On the right, this is the main"
+    },
+    {
+      "segment_id": "seg_0013",
+      "start": 25.694,
+      "end": 26.56,
+      "duration": 0.866,
+      "text": "conversation screen."
+    },
+    {
+      "segment_id": "seg_0014",
+      "start": 27.38,
+      "end": 28.814,
+      "duration": 1.434,
+      "text": "Let's start with this iOS app I've"
+    },
+    {
+      "segment_id": "seg_0015",
+      "start": 28.814,
+      "end": 29.48,
+      "duration": 0.666,
+      "text": "been building."
+    },
+    {
+      "segment_id": "seg_0016",
+      "start": 29.5,
+      "end": 31.576,
+      "duration": 2.076,
+      "text": "It tracks the ISS in real time and"
+    },
+    {
+      "segment_id": "seg_0017",
+      "start": 31.576,
+      "end": 34.42,
+      "duration": 2.844,
+      "text": "let's say I want to build new features for it."
+    },
+    {
+      "segment_id": "seg_0018",
+      "start": 35.21,
+      "end": 36.919,
+      "duration": 1.709,
+      "text": "I can type or better yet I can"
+    },
+    {
+      "segment_id": "seg_0019",
+      "start": 36.919,
+      "end": 38.851,
+      "duration": 1.932,
+      "text": "just speak my mind and dictate."
+    },
+    {
+      "segment_id": "seg_0020",
+      "start": 38.851,
+      "end": 40.708,
+      "duration": 1.857,
+      "text": "Add a new screen that shows the"
+    },
+    {
+      "segment_id": "seg_0021",
+      "start": 40.708,
+      "end": 43.16,
+      "duration": 2.452,
+      "text": "Astronomy Picture of the Day from NASA."
+    },
+    {
+      "segment_id": "seg_0022",
+      "start": 44.52,
+      "end": 46.358,
+      "duration": 1.838,
+      "text": "And that's it Codex is now taking care"
+    },
+    {
+      "segment_id": "seg_0023",
+      "start": 46.358,
+      "end": 47.365,
+      "duration": 1.007,
+      "text": "of all that for me and"
+    },
+    {
+      "segment_id": "seg_0024",
+      "start": 47.365,
+      "end": 49.44,
+      "duration": 2.075,
+      "text": "will figure out the right APIs to build it."
+    },
+    {
+      "segment_id": "seg_0025",
+      "start": 50.74,
+      "end": 52.285,
+      "duration": 1.545,
+      "text": "While that's running let's take a look"
+    },
+    {
+      "segment_id": "seg_0026",
+      "start": 52.285,
+      "end": 53.782,
+      "duration": 1.497,
+      "text": "at another project I've been meaning"
+    },
+    {
+      "segment_id": "seg_0027",
+      "start": 53.782,
+      "end": 54.7,
+      "duration": 0.918,
+      "text": "to migrate for a while."
+    },
+    {
+      "segment_id": "seg_0028",
+      "start": 54.72,
+      "end": 57.272,
+      "duration": 2.552,
+      "text": "Here Codex is updating all the"
+    },
+    {
+      "segment_id": "seg_0029",
+      "start": 57.272,
+      "end": 60.232,
+      "duration": 2.96,
+      "text": "dependencies and in that task it's"
+    },
+    {
+      "segment_id": "seg_0030",
+      "start": 60.232,
+      "end": 62.945,
+      "duration": 2.713,
+      "text": "even migrating from WebSockets to"
+    },
+    {
+      "segment_id": "seg_0031",
+      "start": 62.945,
+      "end": 63.506,
+      "duration": 0.561,
+      "text": "WebRTC"
+    },
+    {
+      "segment_id": "seg_0032",
+      "start": 63.506,
+      "end": 66.254,
+      "duration": 2.748,
+      "text": "for our speech-to-speech integration."
+    },
+    {
+      "segment_id": "seg_0033",
+      "start": 66.254,
+      "end": 68.139,
+      "duration": 1.885,
+      "text": "Now some of these tasks take a while,"
+    },
+    {
+      "segment_id": "seg_0034",
+      "start": 68.139,
+      "end": 69.171,
+      "duration": 1.032,
+      "text": "minutes if not hours,"
+    },
+    {
+      "segment_id": "seg_0035",
+      "start": 69.171,
+      "end": 70.72,
+      "duration": 1.549,
+      "text": "especially when you're working"
+    },
+    {
+      "segment_id": "seg_0036",
+      "start": 70.72,
+      "end": 72.255,
+      "duration": 1.535,
+      "text": "on a large codebase. And"
+    },
+    {
+      "segment_id": "seg_0037",
+      "start": 72.255,
+      "end": 74.328,
+      "duration": 2.073,
+      "text": "that's a big shift in how we build"
+    },
+    {
+      "segment_id": "seg_0038",
+      "start": 74.328,
+      "end": 75.48,
+      "duration": 1.152,
+      "text": "software. Now you"
+    },
+    {
+      "segment_id": "seg_0039",
+      "start": 75.48,
+      "end": 77.41,
+      "duration": 1.93,
+      "text": "can supervise your agents and"
+    },
+    {
+      "segment_id": "seg_0040",
+      "start": 77.41,
+      "end": 79.648,
+      "duration": 2.238,
+      "text": "simply check in when they're done."
+    },
+    {
+      "segment_id": "seg_0041",
+      "start": 79.648,
+      "end": 81.761,
+      "duration": 2.113,
+      "text": "But let's go back to our first task."
+    },
+    {
+      "segment_id": "seg_0042",
+      "start": 81.761,
+      "end": 83.707,
+      "duration": 1.946,
+      "text": "Here you can see how Codex has been"
+    },
+    {
+      "segment_id": "seg_0043",
+      "start": 83.707,
+      "end": 84.68,
+      "duration": 0.973,
+      "text": "approaching the problem"
+    },
+    {
+      "segment_id": "seg_0044",
+      "start": 84.7,
+      "end": 86.425,
+      "duration": 1.725,
+      "text": "the steps it's taking and"
+    },
+    {
+      "segment_id": "seg_0045",
+      "start": 86.425,
+      "end": 88.313,
+      "duration": 1.888,
+      "text": "the progress as it goes. And"
+    },
+    {
+      "segment_id": "seg_0046",
+      "start": 88.313,
+      "end": 90.12,
+      "duration": 1.807,
+      "text": "it's done. Now if I click on"
+    },
+    {
+      "segment_id": "seg_0047",
+      "start": 90.12,
+      "end": 91.718,
+      "duration": 1.598,
+      "text": "the right side I see the diff."
+    },
+    {
+      "segment_id": "seg_0048",
+      "start": 91.718,
+      "end": 93.715,
+      "duration": 1.997,
+      "text": "I can review exactly what changed in"
+    },
+    {
+      "segment_id": "seg_0049",
+      "start": 93.715,
+      "end": 94.58,
+      "duration": 0.865,
+      "text": "the Swift code,"
+    },
+    {
+      "segment_id": "seg_0050",
+      "start": 95.04,
+      "end": 96.989,
+      "duration": 1.949,
+      "text": "I can leave in-line comments for"
+    },
+    {
+      "segment_id": "seg_0051",
+      "start": 96.989,
+      "end": 99.226,
+      "duration": 2.237,
+      "text": "feedback, ask for another iteration"
+    },
+    {
+      "segment_id": "seg_0052",
+      "start": 99.226,
+      "end": 101.558,
+      "duration": 2.332,
+      "text": "or just merge if it looks right. Now if"
+    },
+    {
+      "segment_id": "seg_0053",
+      "start": 101.558,
+      "end": 103.206,
+      "duration": 1.648,
+      "text": "I need to go deeper I can always"
+    },
+    {
+      "segment_id": "seg_0054",
+      "start": 103.206,
+      "end": 104.26,
+      "duration": 1.054,
+      "text": "open the changes in"
+    },
+    {
+      "segment_id": "seg_0055",
+      "start": 104.44,
+      "end": 106.486,
+      "duration": 2.046,
+      "text": "Xcode but in this case I'll just build"
+    },
+    {
+      "segment_id": "seg_0056",
+      "start": 106.486,
+      "end": 108.4,
+      "duration": 1.914,
+      "text": "and run the app directly from here."
+    },
+    {
+      "segment_id": "seg_0057",
+      "start": 109.62,
+      "end": 111.266,
+      "duration": 1.646,
+      "text": "Working with the Codex app makes"
+    },
+    {
+      "segment_id": "seg_0058",
+      "start": 111.266,
+      "end": 112.729,
+      "duration": 1.463,
+      "text": "building more fun, you know,"
+    },
+    {
+      "segment_id": "seg_0059",
+      "start": 112.729,
+      "end": 113.46,
+      "duration": 0.731,
+      "text": "I don't have to"
+    },
+    {
+      "segment_id": "seg_0060",
+      "start": 113.46,
+      "end": 115.465,
+      "duration": 2.005,
+      "text": "spend a lot of time editing code but"
+    },
+    {
+      "segment_id": "seg_0061",
+      "start": 115.465,
+      "end": 117.44,
+      "duration": 1.975,
+      "text": "rather just thinking about how to"
+    },
+    {
+      "segment_id": "seg_0062",
+      "start": 117.64,
+      "end": 119.01,
+      "duration": 1.37,
+      "text": "shape the app the way I want it"
+    },
+    {
+      "segment_id": "seg_0063",
+      "start": 119.01,
+      "end": 121.18,
+      "duration": 2.17,
+      "text": "to be. Let's bring the iOS simulator on screen"
+    },
+    {
+      "segment_id": "seg_0064",
+      "start": 121.84,
+      "end": 123.582,
+      "duration": 1.742,
+      "text": "and here it is. I just gave one"
+    },
+    {
+      "segment_id": "seg_0065",
+      "start": 123.582,
+      "end": 124.888,
+      "duration": 1.306,
+      "text": "sentence to Codex and"
+    },
+    {
+      "segment_id": "seg_0066",
+      "start": 124.888,
+      "end": 126.34,
+      "duration": 1.452,
+      "text": "it built this entire new"
+    },
+    {
+      "segment_id": "seg_0067",
+      "start": 126.44,
+      "end": 128.342,
+      "duration": 1.902,
+      "text": "feature for me. Isn't that amazing?"
+    },
+    {
+      "segment_id": "seg_0068",
+      "start": 128.342,
+      "end": 130.56,
+      "duration": 2.218,
+      "text": "Let's switch to another project I've been"
+    },
+    {
+      "segment_id": "seg_0069",
+      "start": 130.74,
+      "end": 132.753,
+      "duration": 2.013,
+      "text": "working on. It's a web-based fitness"
+    },
+    {
+      "segment_id": "seg_0070",
+      "start": 132.753,
+      "end": 134.96,
+      "duration": 2.207,
+      "text": "tracker. Well for visual tasks like this"
+    },
+    {
+      "segment_id": "seg_0071",
+      "start": 135.16,
+      "end": 136.988,
+      "duration": 1.828,
+      "text": "one I want to stick closer to the"
+    },
+    {
+      "segment_id": "seg_0072",
+      "start": 136.988,
+      "end": 138.676,
+      "duration": 1.688,
+      "text": "experience I'm building. So"
+    },
+    {
+      "segment_id": "seg_0073",
+      "start": 138.676,
+      "end": 139.52,
+      "duration": 0.844,
+      "text": "by clicking on"
+    },
+    {
+      "segment_id": "seg_0074",
+      "start": 139.52,
+      "end": 141.446,
+      "duration": 1.926,
+      "text": "top right corner I can pop the"
+    },
+    {
+      "segment_id": "seg_0075",
+      "start": 141.446,
+      "end": 143.532,
+      "duration": 2.086,
+      "text": "conversation out like this and"
+    },
+    {
+      "segment_id": "seg_0076",
+      "start": 143.532,
+      "end": 146.02,
+      "duration": 2.488,
+      "text": "bring Codex with me and I can dictate,"
+    },
+    {
+      "segment_id": "seg_0077",
+      "start": 147.18,
+      "end": 149.496,
+      "duration": 2.316,
+      "text": "animate the bars to simulate progress"
+    },
+    {
+      "segment_id": "seg_0078",
+      "start": 149.496,
+      "end": 151.088,
+      "duration": 1.592,
+      "text": "and now I'll be able in a few"
+    },
+    {
+      "segment_id": "seg_0079",
+      "start": 151.088,
+      "end": 152.68,
+      "duration": 1.592,
+      "text": "seconds to see the changes"
+    },
+    {
+      "segment_id": "seg_0080",
+      "start": 152.84,
+      "end": 155.0,
+      "duration": 2.16,
+      "text": "apply live, it really feels like"
+    },
+    {
+      "segment_id": "seg_0081",
+      "start": 155.0,
+      "end": 157.32,
+      "duration": 2.32,
+      "text": "collaborating with a teammate and"
+    },
+    {
+      "segment_id": "seg_0082",
+      "start": 157.32,
+      "end": 159.48,
+      "duration": 2.16,
+      "text": "here we go. Now another powerful"
+    },
+    {
+      "segment_id": "seg_0083",
+      "start": 159.78,
+      "end": 161.809,
+      "duration": 2.029,
+      "text": "part of the Codex app is skills."
+    },
+    {
+      "segment_id": "seg_0084",
+      "start": 161.809,
+      "end": 163.995,
+      "duration": 2.186,
+      "text": "Skills let Codex connect to all of"
+    },
+    {
+      "segment_id": "seg_0085",
+      "start": 163.995,
+      "end": 165.4,
+      "duration": 1.405,
+      "text": "your favorite tools."
+    },
+    {
+      "segment_id": "seg_0086",
+      "start": 166.2,
+      "end": 167.935,
+      "duration": 1.735,
+      "text": "In fact, this app was actually"
+    },
+    {
+      "segment_id": "seg_0087",
+      "start": 167.935,
+      "end": 170.017,
+      "duration": 2.082,
+      "text": "implemented using the Figma skill,"
+    },
+    {
+      "segment_id": "seg_0088",
+      "start": 170.017,
+      "end": 172.168,
+      "duration": 2.151,
+      "text": "which automatically used MCP behind"
+    },
+    {
+      "segment_id": "seg_0089",
+      "start": 172.168,
+      "end": 174.18,
+      "duration": 2.012,
+      "text": "the scenes and set things up for me."
+    },
+    {
+      "segment_id": "seg_0090",
+      "start": 174.76,
+      "end": 175.94,
+      "duration": 1.18,
+      "text": "Let me quickly show you the design."
+    },
+    {
+      "segment_id": "seg_0091",
+      "start": 176.96,
+      "end": 178.617,
+      "duration": 1.657,
+      "text": "This is the homepage and if"
+    },
+    {
+      "segment_id": "seg_0092",
+      "start": 178.617,
+      "end": 180.049,
+      "duration": 1.432,
+      "text": "I click one component,"
+    },
+    {
+      "segment_id": "seg_0093",
+      "start": 180.049,
+      "end": 182.083,
+      "duration": 2.034,
+      "text": "for instance, you can see how the"
+    },
+    {
+      "segment_id": "seg_0094",
+      "start": 182.083,
+      "end": 183.74,
+      "duration": 1.657,
+      "text": "spacing, the textiles and"
+    },
+    {
+      "segment_id": "seg_0095",
+      "start": 183.74,
+      "end": 186.0,
+      "duration": 2.26,
+      "text": "all of that are defined right there."
+    },
+    {
+      "segment_id": "seg_0096",
+      "start": 186.37,
+      "end": 187.763,
+      "duration": 1.393,
+      "text": "So Codex has not been working from"
+    },
+    {
+      "segment_id": "seg_0097",
+      "start": 187.763,
+      "end": 188.36,
+      "duration": 0.597,
+      "text": "a screenshot."
+    },
+    {
+      "segment_id": "seg_0098",
+      "start": 189.04,
+      "end": 190.906,
+      "duration": 1.866,
+      "text": "It's actually reading the structure"
+    },
+    {
+      "segment_id": "seg_0099",
+      "start": 190.906,
+      "end": 192.711,
+      "duration": 1.805,
+      "text": "of the design file, including those"
+    },
+    {
+      "segment_id": "seg_0100",
+      "start": 192.711,
+      "end": 194.637,
+      "duration": 1.926,
+      "text": "variables to generate real code using"
+    },
+    {
+      "segment_id": "seg_0101",
+      "start": 194.637,
+      "end": 195.6,
+      "duration": 0.963,
+      "text": "our design system."
+    },
+    {
+      "segment_id": "seg_0102",
+      "start": 196.18,
+      "end": 198.34,
+      "duration": 2.16,
+      "text": "and that's why it matches the design so well."
+    },
+    {
+      "segment_id": "seg_0103",
+      "start": 199.2,
+      "end": 200.807,
+      "duration": 1.607,
+      "text": "Of course, you can also create your"
+    },
+    {
+      "segment_id": "seg_0104",
+      "start": 200.807,
+      "end": 202.58,
+      "duration": 1.773,
+      "text": "own skill for yourself or for your team"
+    },
+    {
+      "segment_id": "seg_0105",
+      "start": 202.97,
+      "end": 204.4,
+      "duration": 1.43,
+      "text": "so it can really fit your workflow."
+    },
+    {
+      "segment_id": "seg_0106",
+      "start": 204.92,
+      "end": 206.82,
+      "duration": 1.9,
+      "text": "Now, what's really powerful with the Codex app"
+    },
+    {
+      "segment_id": "seg_0107",
+      "start": 206.93,
+      "end": 208.665,
+      "duration": 1.735,
+      "text": "is that you can even turn these skills"
+    },
+    {
+      "segment_id": "seg_0108",
+      "start": 208.665,
+      "end": 209.56,
+      "duration": 0.895,
+      "text": "into automations."
+    },
+    {
+      "segment_id": "seg_0109",
+      "start": 210.26,
+      "end": 211.792,
+      "duration": 1.532,
+      "text": "Imagine you have tasks that you want"
+    },
+    {
+      "segment_id": "seg_0110",
+      "start": 211.792,
+      "end": 213.12,
+      "duration": 1.328,
+      "text": "running at a specific cadence."
+    },
+    {
+      "segment_id": "seg_0111",
+      "start": 213.7,
+      "end": 216.245,
+      "duration": 2.545,
+      "text": "Maybe that's triaging alerts from"
+    },
+    {
+      "segment_id": "seg_0112",
+      "start": 216.245,
+      "end": 219.338,
+      "duration": 3.093,
+      "text": "Sentry or bugs and tickets from Linear."
+    },
+    {
+      "segment_id": "seg_0113",
+      "start": 219.66,
+      "end": 221.057,
+      "duration": 1.397,
+      "text": "Well, you can now have that handled"
+    },
+    {
+      "segment_id": "seg_0114",
+      "start": 221.057,
+      "end": 222.105,
+      "duration": 1.048,
+      "text": "in the background while"
+    },
+    {
+      "segment_id": "seg_0115",
+      "start": 222.105,
+      "end": 223.1,
+      "duration": 0.995,
+      "text": "you focus on building."
+    },
+    {
+      "segment_id": "seg_0116",
+      "start": 224.2,
+      "end": 226.111,
+      "duration": 1.911,
+      "text": "There are many more features in the"
+    },
+    {
+      "segment_id": "seg_0117",
+      "start": 226.111,
+      "end": 228.022,
+      "duration": 1.911,
+      "text": "Codex app, including working with"
+    },
+    {
+      "segment_id": "seg_0118",
+      "start": 228.022,
+      "end": 229.34,
+      "duration": 1.318,
+      "text": "isolated environments"
+    },
+    {
+      "segment_id": "seg_0119",
+      "start": 229.56,
+      "end": 231.447,
+      "duration": 1.887,
+      "text": "called worktrees, so this way you can"
+    },
+    {
+      "segment_id": "seg_0120",
+      "start": 231.447,
+      "end": 233.091,
+      "duration": 1.644,
+      "text": "give each agent a copy of the code"
+    },
+    {
+      "segment_id": "seg_0121",
+      "start": 233.091,
+      "end": 234.663,
+      "duration": 1.572,
+      "text": "so you don't have to worry about"
+    },
+    {
+      "segment_id": "seg_0122",
+      "start": 234.663,
+      "end": 235.328,
+      "duration": 0.665,
+      "text": "conflicts or"
+    },
+    {
+      "segment_id": "seg_0123",
+      "start": 235.328,
+      "end": 236.4,
+      "duration": 1.072,
+      "text": "breaking your setup."
+    },
+    {
+      "segment_id": "seg_0124",
+      "start": 237.46,
+      "end": 239.134,
+      "duration": 1.674,
+      "text": "You can also delegate any task,"
+    },
+    {
+      "segment_id": "seg_0125",
+      "start": 239.134,
+      "end": 241.065,
+      "duration": 1.931,
+      "text": "especially the long-running ones,"
+    },
+    {
+      "segment_id": "seg_0126",
+      "start": 241.065,
+      "end": 242.16,
+      "duration": 1.095,
+      "text": "to Codex in the cloud"
+    },
+    {
+      "segment_id": "seg_0127",
+      "start": 242.5,
+      "end": 243.96,
+      "duration": 1.46,
+      "text": "with the exact same interface."
+    },
+    {
+      "segment_id": "seg_0128",
+      "start": 244.78,
+      "end": 245.94,
+      "duration": 1.16,
+      "text": "This was just a quick tour."
+    },
+    {
+      "segment_id": "seg_0129",
+      "start": 246.44,
+      "end": 247.94,
+      "duration": 1.5,
+      "text": "The Codex app is a brand new way"
+    },
+    {
+      "segment_id": "seg_0130",
+      "start": 247.94,
+      "end": 248.9,
+      "duration": 0.96,
+      "text": "to build software."
+    },
+    {
+      "segment_id": "seg_0131",
+      "start": 249.68,
+      "end": 251.696,
+      "duration": 2.016,
+      "text": "For me, it means spending a lot less"
+    },
+    {
+      "segment_id": "seg_0132",
+      "start": 251.696,
+      "end": 252.947,
+      "duration": 1.251,
+      "text": "time writing code and"
+    },
+    {
+      "segment_id": "seg_0133",
+      "start": 252.947,
+      "end": 254.407,
+      "duration": 1.46,
+      "text": "a lot more time creating,"
+    },
+    {
+      "segment_id": "seg_0134",
+      "start": 254.407,
+      "end": 256.84,
+      "duration": 2.433,
+      "text": "refining ideas and bringing them to life."
+    },
+    {
+      "segment_id": "seg_0135",
+      "start": 257.66,
+      "end": 259.16,
+      "duration": 1.5,
+      "text": "We can't wait to see what you build with it."
+    }
+  ]
+}
