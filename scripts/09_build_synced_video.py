@@ -43,6 +43,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Process only the first N segments for test runs.",
     )
     parser.add_argument(
+        "--start-index",
+        type=int,
+        help="1-based translated segment index to start from.",
+    )
+    parser.add_argument(
+        "--end-index",
+        type=int,
+        help="1-based translated segment index to end at.",
+    )
+    parser.add_argument(
         "--keep-temp",
         action="store_true",
         help="Keep concat list and other temporary text artifacts.",
@@ -52,6 +62,18 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=1.25,
         help="Maximum allowed audio speed-up factor. Default: 1.25",
+    )
+    parser.add_argument(
+        "--video-tail-cushion-ratio",
+        type=float,
+        default=0.01,
+        help="Extra duration ratio for slowed video segments. Default: 0.01",
+    )
+    parser.add_argument(
+        "--video-tail-cushion-max-sec",
+        type=float,
+        default=0.12,
+        help="Maximum extra duration for slowed video segments. Default: 0.12",
     )
     parser.add_argument(
         "--crf",
@@ -218,6 +240,29 @@ def _build_segment_records(
     return records
 
 
+def _select_records(
+    records: list[dict[str, Any]],
+    start_index: int | None,
+    end_index: int | None,
+    limit: int | None,
+) -> tuple[list[dict[str, Any]], bool]:
+    has_range = start_index is not None or end_index is not None
+    selected = records
+    if has_range:
+        start = start_index if start_index is not None else 1
+        end = end_index if end_index is not None else len(records)
+        selected = [
+            record
+            for record in records
+            if start <= int(record["index"]) <= end
+        ]
+
+    if limit is not None:
+        selected = selected[:limit]
+
+    return selected, has_range
+
+
 def _ensure_positive_duration(value: float, label: str) -> None:
     if value <= 0:
         raise SyncedVideoError(f"{label} must be greater than zero. Got: {value}")
@@ -287,44 +332,38 @@ def _ffmpeg_build_segment_video(
     crf: int,
     preset: str,
 ) -> None:
+    filter_complex = (
+        f"[0:v]trim=start={source_start:.6f}:duration={source_duration:.6f},"
+        f"setpts=(PTS-STARTPTS)/{video_speed:.12f}[v]"
+    )
     command = [
         ffmpeg_bin,
         "-y",
-        "-ss",
-        f"{source_start:.6f}",
-        "-t",
-        f"{source_duration:.6f}",
         "-i",
         str(source_video_path),
         "-i",
         str(adjusted_audio_path),
+        "-filter_complex",
+        filter_complex,
+        "-map",
+        "[v]",
+        "-map",
+        "1:a:0",
+        "-c:v",
+        "libx264",
+        "-preset",
+        preset,
+        "-crf",
+        str(crf),
+        "-c:a",
+        "aac",
+        "-shortest",
+        "-movflags",
+        "+faststart",
+        "-t",
+        f"{target_duration:.6f}",
+        str(output_segment_path),
     ]
-
-    setpts_expr = f"(PTS-STARTPTS)/{video_speed:.12f}"
-    command.extend(["-filter:v", f"setpts={setpts_expr}"])
-
-    command.extend(
-        [
-            "-map",
-            "0:v:0",
-            "-map",
-            "1:a:0",
-            "-c:v",
-            "libx264",
-            "-preset",
-            preset,
-            "-crf",
-            str(crf),
-            "-c:a",
-            "aac",
-            "-shortest",
-            "-movflags",
-            "+faststart",
-            "-t",
-            f"{target_duration:.6f}",
-            str(output_segment_path),
-        ]
-    )
     _run_command(command)
 
 
@@ -376,6 +415,20 @@ def main(argv: list[str] | None = None) -> int:
         raise SyncedVideoError("--max-audio-speed must be greater than zero.")
     if args.limit is not None and args.limit <= 0:
         raise SyncedVideoError("--limit must be greater than zero when provided.")
+    if args.start_index is not None and args.start_index <= 0:
+        raise SyncedVideoError("--start-index must be a positive integer.")
+    if args.end_index is not None and args.end_index <= 0:
+        raise SyncedVideoError("--end-index must be a positive integer.")
+    if (
+        args.start_index is not None
+        and args.end_index is not None
+        and args.start_index > args.end_index
+    ):
+        raise SyncedVideoError("--start-index must be less than or equal to --end-index.")
+    if args.video_tail_cushion_ratio < 0:
+        raise SyncedVideoError("--video-tail-cushion-ratio must be zero or greater.")
+    if args.video_tail_cushion_max_sec < 0:
+        raise SyncedVideoError("--video-tail-cushion-max-sec must be zero or greater.")
 
     paths = build_job_paths(args.output_dir, args.job_id)
     job_dir = paths.job_dir
@@ -390,11 +443,15 @@ def main(argv: list[str] | None = None) -> int:
     segments = _load_translated_segments(paths.resolve_translated_segments_json_path())
     tts_items_by_segment_id = _load_tts_manifest_items(paths.resolve_tts_manifest_path())
     records = _build_segment_records(segments, tts_items_by_segment_id)
-    if args.limit is not None:
-        records = records[: args.limit]
+    records, _ = _select_records(
+        records=records,
+        start_index=args.start_index,
+        end_index=args.end_index,
+        limit=args.limit,
+    )
 
     if not records:
-        raise SyncedVideoError("No segments to process.")
+        raise SyncedVideoError("No segments matched the requested range.")
 
     paths.ensure_synced_video_dirs()
 
@@ -421,11 +478,14 @@ def main(argv: list[str] | None = None) -> int:
         video_speed = 1.0
         target_duration = source_duration
         adjustment = ""
+        adjusted_audio_duration_before_padding = source_duration
+        video_tail_cushion_sec = 0.0
         warning: str | None = None
 
         is_skipped_empty = status == "skipped_empty" or text.strip() == ""
         if is_skipped_empty:
             adjustment = "skipped_empty"
+            adjusted_audio_duration_before_padding = 0.0
             _ffmpeg_make_silence(args.ffmpeg_bin, adjusted_audio_path, source_duration)
         else:
             if not isinstance(wav_rel, str) or not wav_rel:
@@ -444,6 +504,7 @@ def main(argv: list[str] | None = None) -> int:
 
             if original_wav_duration <= source_duration:
                 adjustment = "padded_audio"
+                adjusted_audio_duration_before_padding = original_wav_duration
                 _ffmpeg_adjust_audio(
                     args.ffmpeg_bin,
                     input_wav_path,
@@ -456,6 +517,9 @@ def main(argv: list[str] | None = None) -> int:
                 if required_audio_speed <= args.max_audio_speed:
                     adjustment = "sped_audio"
                     applied_audio_speed = required_audio_speed
+                    adjusted_audio_duration_before_padding = (
+                        original_wav_duration / applied_audio_speed
+                    )
                     _ffmpeg_adjust_audio(
                         args.ffmpeg_bin,
                         input_wav_path,
@@ -466,7 +530,16 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     adjustment = "sped_audio_and_slowed_video"
                     applied_audio_speed = args.max_audio_speed
-                    target_duration = original_wav_duration / applied_audio_speed
+                    adjusted_audio_duration_before_padding = (
+                        original_wav_duration / applied_audio_speed
+                    )
+                    video_tail_cushion_sec = min(
+                        adjusted_audio_duration_before_padding * args.video_tail_cushion_ratio,
+                        args.video_tail_cushion_max_sec,
+                    )
+                    target_duration = (
+                        adjusted_audio_duration_before_padding + video_tail_cushion_sec
+                    )
                     video_speed = source_duration / target_duration
                     _ensure_positive_duration(video_speed, f"video speed for {segment_id}")
                     _ffmpeg_adjust_audio(
@@ -485,8 +558,6 @@ def main(argv: list[str] | None = None) -> int:
         if adjustment in {"padded_audio", "sped_audio", "skipped_empty"}:
             target_duration = source_duration
             video_speed = 1.0
-        elif adjustment == "sped_audio_and_slowed_video":
-            target_duration = adjusted_audio_duration
 
         _ffmpeg_build_segment_video(
             args.ffmpeg_bin,
@@ -500,6 +571,7 @@ def main(argv: list[str] | None = None) -> int:
             crf=args.crf,
             preset=args.preset,
         )
+        final_segment_duration = _probe_duration_seconds(args.ffprobe_bin, output_segment_path)
 
         manifest_items.append(
             {
@@ -512,11 +584,17 @@ def main(argv: list[str] | None = None) -> int:
                 "original_wav_duration": original_wav_duration,
                 "adjusted_audio_path": _relpath(adjusted_audio_path, job_dir),
                 "adjusted_audio_duration": adjusted_audio_duration,
+                "adjusted_audio_duration_before_padding": adjusted_audio_duration_before_padding,
+                "final_audio_duration": adjusted_audio_duration,
                 "output_segment_path": _relpath(output_segment_path, job_dir),
                 "required_audio_speed": required_audio_speed,
                 "applied_audio_speed": applied_audio_speed,
                 "video_speed": video_speed,
                 "target_duration": target_duration,
+                "video_tail_cushion_ratio": args.video_tail_cushion_ratio,
+                "video_tail_cushion_sec": video_tail_cushion_sec,
+                "final_segment_duration": final_segment_duration,
+                "accurate_seek": True,
                 "adjustment": adjustment,
                 "warning": warning,
             }
@@ -535,6 +613,8 @@ def main(argv: list[str] | None = None) -> int:
     manifest_payload = {
         "job_id": args.job_id,
         "max_audio_speed": args.max_audio_speed,
+        "video_tail_cushion_ratio": args.video_tail_cushion_ratio,
+        "video_tail_cushion_max_sec": args.video_tail_cushion_max_sec,
         "output_video": _relpath(output_video_path, job_dir),
         "total_items": len(segments),
         "processed_items": len(manifest_items),
@@ -547,7 +627,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.keep_temp and concat_list_path.exists():
         concat_list_path.unlink()
-
     print(f"Created synced dubbed video: {output_video_path}")
     print(f"Created synced manifest: {manifest_path}")
     return 0
