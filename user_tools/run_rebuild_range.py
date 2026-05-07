@@ -15,7 +15,7 @@ MUX_VIDEO = True
 
 
 def _load_pipeline_module():
-    script_path = Path(__file__).with_name("91_run_local_tts_pipeline.py")
+    script_path = Path(__file__).resolve().parent.parent / "scripts" / "91_run_local_tts_pipeline.py"
     module_name = "run_local_tts_pipeline_rebuild_range"
     spec = importlib.util.spec_from_file_location(module_name, script_path)
     if spec is None or spec.loader is None:
