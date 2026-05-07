@@ -3,7 +3,7 @@
   "base_url": "http://127.0.0.1:10101",
   "speaker_id": 1937616896,
   "total_segments": 61,
-  "generated_at": "2026-05-07T04:09:27.552031+00:00",
+  "generated_at": "2026-05-07T04:23:23.850437+00:00",
   "items": [
     {
       "index": 1,
@@ -64,7 +64,7 @@
       "segment_id": "seg_0007",
       "start": 40.52,
       "end": 42.92,
-      "text": "♪ Gotta make you understand ♪",
+      "text": "♪ 分かってほしいんだ ♪",
       "wav_path": "tts/segment_000007.wav",
       "status": "generated"
     },
@@ -73,7 +73,7 @@
       "segment_id": "seg_0008",
       "start": 43.0,
       "end": 45.12,
-      "text": "♪ Never gonna give you up ♪",
+      "text": "♪ 君を離さない ♪",
       "wav_path": "tts/segment_000008.wav",
       "status": "generated"
     },

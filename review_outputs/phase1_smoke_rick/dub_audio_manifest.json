@@ -58,8 +58,8 @@
       "target_start": 27.04,
       "target_end": 31.04,
       "actual_start": 27.04,
-      "actual_end": 30.781020408163265,
-      "wav_duration": 3.741020408163265,
+      "actual_end": 29.70113378684807,
+      "wav_duration": 2.6611337868480724,
       "silence_inserted": 1.111859410430839,
       "warning": null
     },
@@ -71,9 +71,9 @@
       "target_start": 31.12,
       "target_end": 35.08,
       "actual_start": 31.12,
-      "actual_end": 34.54421768707483,
-      "wav_duration": 3.42421768707483,
-      "silence_inserted": 0.3389795918367347,
+      "actual_end": 34.37331065759637,
+      "wav_duration": 3.253310657596372,
+      "silence_inserted": 1.4188662131519274,
       "warning": null
     },
     {
@@ -84,9 +84,9 @@
       "target_start": 35.16,
       "target_end": 39.52,
       "actual_start": 35.16,
-      "actual_end": 38.285714285714285,
-      "wav_duration": 3.125714285714286,
-      "silence_inserted": 0.61578231292517,
+      "actual_end": 38.22757369614512,
+      "wav_duration": 3.0675736961451245,
+      "silence_inserted": 0.7866893424036281,
       "warning": null
     },
     {
@@ -97,9 +97,9 @@
       "target_start": 40.52,
       "target_end": 42.92,
       "actual_start": 40.52,
-      "actual_end": 42.81625850340136,
-      "wav_duration": 2.2962585034013605,
-      "silence_inserted": 2.2342857142857144,
+      "actual_end": 42.08986394557823,
+      "wav_duration": 1.5698639455782313,
+      "silence_inserted": 2.2924263038548753,
       "warning": null
     },
     {
@@ -110,9 +110,9 @@
       "target_start": 43.0,
       "target_end": 45.12,
       "actual_start": 43.0,
-      "actual_end": 44.86877551020408,
-      "wav_duration": 1.8687755102040817,
-      "silence_inserted": 0.18374149659863945,
+      "actual_end": 44.47707482993197,
+      "wav_duration": 1.4770748299319727,
+      "silence_inserted": 0.9101360544217687,
       "warning": null
     },
     {
@@ -125,7 +125,7 @@
       "actual_start": 45.2,
       "actual_end": 47.05641723356009,
       "wav_duration": 1.8564172335600908,
-      "silence_inserted": 0.33122448979591834,
+      "silence_inserted": 0.7229251700680273,
       "warning": null
     },
     {

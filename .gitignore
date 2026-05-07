@@ -21,7 +21,8 @@ dist/
 # OS/editor noise
 .DS_Store
 Thumbs.db
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 .idea/
 
 # Local logs and temp files
