@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 Whisper fallback は未実装です。必要になった時点で `faster-whisper` を追加導入します。
 
-Codex に URL だけ渡して最後まで作らせる場合は `docs/codex_run_youtube_dub.md` を使います。
+Codex に YouTube URL だけ渡すと、`AGENTS.md` のルールにより `docs/codex_run_youtube_dub.md` の流れで処理します。
 
 ## Entrypoints
 
