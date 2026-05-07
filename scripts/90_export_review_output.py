@@ -9,18 +9,19 @@ from pathlib import Path
 
 
 FILES_TO_COPY = (
-    "job.json",
-    "transcript_original.json",
-    "transcript_original.srt",
-    "translated_segments.json",
-    "translated_segments.srt",
-    "dub_audio_manifest.json",
-    "translation_input/manifest.json",
-    "tts/tts_manifest.json",
+    "01_source/job.json",
+    "02_transcript/transcript_original.json",
+    "02_transcript/transcript_original.srt",
+    "05_segments/translated_segments.json",
+    "05_segments/translated_segments.srt",
+    "07_audio/dub_audio_manifest.json",
+    "03_translation_input/manifest.json",
+    "06_tts/tts_manifest.json",
+    "08_synced_video/synced_video_manifest.json",
 )
 GLOBS_TO_COPY = (
-    "translation_input/chunk_*.txt",
-    "translation_output/chunk_*.txt",
+    "03_translation_input/chunk_*.txt",
+    "04_translation_output/chunk_*.txt",
 )
 
 

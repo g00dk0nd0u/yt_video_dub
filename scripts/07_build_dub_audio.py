@@ -9,6 +9,8 @@ import wave
 from pathlib import Path
 from typing import Any
 
+from path_layout import build_job_paths
+
 
 class DubAudioError(RuntimeError):
     """Raised when dub-audio assembly fails."""
@@ -16,7 +18,7 @@ class DubAudioError(RuntimeError):
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Build dub_audio.wav from output/<job_id>/tts/tts_manifest.json."
+        description="Build 07_audio/dub_audio.wav from the TTS manifest."
     )
     parser.add_argument(
         "--job-id",
@@ -31,8 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _load_tts_manifest(job_dir: Path) -> dict[str, Any]:
-    manifest_path = job_dir / "tts" / "tts_manifest.json"
+def _load_tts_manifest(manifest_path) -> dict[str, Any]:
     if not manifest_path.exists():
         raise FileNotFoundError(f"Missing TTS manifest file: {manifest_path}")
 
@@ -102,7 +103,7 @@ def _build_wav_params_dict(params: wave._wave_params) -> dict[str, Any]:
     }
 
 
-def _resolve_output_wav_params(job_dir: Path, items: list[dict[str, Any]]) -> wave._wave_params:
+def _resolve_output_wav_params(job_dir, items: list[dict[str, Any]]) -> wave._wave_params:
     for item in items:
         if item["status"] not in {"generated", "reused"}:
             continue
@@ -178,13 +179,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    job_dir = Path(args.output_dir) / args.job_id
-    manifest = _load_tts_manifest(job_dir)
+    paths = build_job_paths(args.output_dir, args.job_id)
+    manifest_path = paths.resolve_tts_manifest_path()
+    manifest = _load_tts_manifest(manifest_path)
     raw_items = manifest["items"]
     items = [_validate_item(item, index) for index, item in enumerate(raw_items, start=1)]
 
-    output_wav_path = job_dir / "dub_audio.wav"
-    output_manifest_path = job_dir / "dub_audio_manifest.json"
+    job_dir = paths.job_dir
+    output_wav_path = paths.dub_audio_wav_path
+    output_manifest_path = paths.dub_audio_manifest_path
+    paths.ensure_audio_dirs()
 
     wav_params = _resolve_output_wav_params(job_dir, items)
     output_frames = bytearray()
@@ -293,8 +297,8 @@ def main(argv: list[str] | None = None) -> int:
 
     output_manifest = {
         "job_id": args.job_id,
-        "source_manifest": "tts/tts_manifest.json",
-        "output_wav": "dub_audio.wav",
+        "source_manifest": paths.rel_to_job(manifest_path),
+        "output_wav": paths.rel_to_job(output_wav_path),
         "wav_params": _build_wav_params_dict(wav_params),
         "total_items": len(items),
         "processed_items": len(processed_items),

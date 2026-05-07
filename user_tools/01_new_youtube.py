@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import sys
 from pathlib import Path
 
 
@@ -15,6 +16,18 @@ OUTPUT_DIR = "output"
 def _load_prepare_module():
     script_path = REPO_ROOT / "scripts" / "run_prepare.py"
     module_name = "user_tool_prepare_youtube"
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Failed to load script module: {script_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_path_layout_module():
+    script_path = REPO_ROOT / "scripts" / "path_layout.py"
+    module_name = "user_tool_path_layout"
     spec = importlib.util.spec_from_file_location(module_name, script_path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Failed to load script module: {script_path}")
@@ -67,8 +80,10 @@ def main() -> int:
         print("output/ を開いて作成されたフォルダを確認してください。")
         return 0
 
-    translation_input = f"output/{job_id}/translation_input/"
-    translation_output = f"output/{job_id}/translation_output/"
+    path_layout = _load_path_layout_module()
+    paths = path_layout.build_job_paths(OUTPUT_DIR, job_id)
+    translation_input = f"{paths.translation_input_dir.as_posix()}/"
+    translation_output = f"{paths.translation_output_dir.as_posix()}/"
 
     print("")
     print("準備が完了しました")
@@ -77,8 +92,8 @@ def main() -> int:
     print(f"翻訳保存先: {translation_output}")
     print("次にやること:")
     print("Codexに docs/translation_mode.md を読ませて、")
-    print("translation_input/chunk_*.txt を日本語化し、")
-    print("translation_output/chunk_*.txt に保存してください。")
+    print("03_translation_input/chunk_*.txt を日本語化し、")
+    print("04_translation_output/chunk_*.txt に保存してください。")
     return 0
 
 

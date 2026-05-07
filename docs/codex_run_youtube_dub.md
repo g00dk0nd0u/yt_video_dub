@@ -31,13 +31,13 @@ docs/translation_mode.md
 For every file:
 
 ```text
-output/<video_id>/translation_input/chunk_*.txt
+output/<video_id>/03_translation_input/chunk_*.txt
 ```
 
 Create the matching file:
 
 ```text
-output/<video_id>/translation_output/chunk_*.txt
+output/<video_id>/04_translation_output/chunk_*.txt
 ```
 
 Rules:
@@ -74,9 +74,9 @@ Do not run:
 
 ## 5. Verify
 
-- `translated_segments.json` exists.
-- `translated_segments.srt` exists when the translation build step produces it.
-- `translation_output/chunk_*.txt` exists for every input chunk.
+- `05_segments/translated_segments.json` exists.
+- `05_segments/translated_segments.srt` exists when the translation build step produces it.
+- `04_translation_output/chunk_*.txt` exists for every input chunk.
 
 ## 6. Git
 
@@ -93,8 +93,8 @@ Do not commit:
 - `mov`
 - `m4a`
 - `aac`
-- `synced_segments/*.mp4`
-- `synced_segments/*.wav`
+- `08_synced_video/synced_segments/*.mp4`
+- `08_synced_video/synced_segments/*.wav`
 
 ## 7. Push
 

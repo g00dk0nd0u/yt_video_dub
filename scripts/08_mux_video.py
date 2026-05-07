@@ -6,7 +6,8 @@ from __future__ import annotations
 import argparse
 import shlex
 import subprocess
-from pathlib import Path
+
+from path_layout import build_job_paths
 
 
 class MuxVideoError(RuntimeError):
@@ -15,7 +16,7 @@ class MuxVideoError(RuntimeError):
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Mux source.mp4 with dub_audio.wav into dubbed_video.mp4."
+        description="Mux source.mp4 with dub_audio.wav into 09_simple_mux/dubbed_video.mp4."
     )
     parser.add_argument(
         "--job-id",
@@ -72,10 +73,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    job_dir = Path(args.output_dir) / args.job_id
-    source_video_path = job_dir / "source.mp4"
-    dub_audio_path = job_dir / "dub_audio.wav"
-    output_video_path = job_dir / "dubbed_video.mp4"
+    paths = build_job_paths(args.output_dir, args.job_id)
+    source_video_path = paths.resolve_source_video_path()
+    dub_audio_path = paths.resolve_dub_audio_wav_path()
+    output_video_path = paths.dubbed_video_simple_path
+    paths.ensure_simple_mux_dir()
 
     _require_file(source_video_path, "source video")
     _require_file(dub_audio_path, "dub audio")
