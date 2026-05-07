@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export lightweight pipeline outputs for review without copying heavy media."""
+"""Deprecated review export helper for the old review_outputs workflow."""
 
 from __future__ import annotations
 
@@ -76,6 +76,11 @@ def _collect_files(source_job_dir: Path) -> list[Path]:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    print(
+        "Warning: scripts/90_export_review_output.py is deprecated. "
+        "Use lightweight files under output/<job_id>/ directly."
+    )
 
     source_job_dir = Path(args.output_dir) / args.job_id
     if not source_job_dir.is_dir():

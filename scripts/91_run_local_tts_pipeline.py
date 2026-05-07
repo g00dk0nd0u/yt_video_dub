@@ -13,12 +13,11 @@ DEFAULT_JOB_ID = "phase1_smoke_rick"
 DEFAULT_OUTPUT_DIR = "output"
 DEFAULT_BASE_URL = "http://127.0.0.1:10101"
 DEFAULT_SPEAKER_ID = 1937616896
-DEFAULT_REVIEW_DIR = "review_outputs"
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run translated-segment rebuild, TTS, dub-audio build, optional video mux, and review export."
+        description="Run translated-segment rebuild, TTS, dub-audio build, and optional video mux."
     )
     parser.add_argument(
         "--job-id",
@@ -40,11 +39,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_SPEAKER_ID,
         type=int,
         help=f"Speaker ID to use for TTS generation. Default: {DEFAULT_SPEAKER_ID}",
-    )
-    parser.add_argument(
-        "--review-dir",
-        default=DEFAULT_REVIEW_DIR,
-        help=f"Destination review directory. Default: {DEFAULT_REVIEW_DIR}",
     )
     parser.add_argument(
         "--mux-video",
@@ -155,13 +149,8 @@ def main(argv: list[str] | None = None) -> int:
             "08_mux_video.py",
             common_job_args + ["--ffmpeg-bin", args.ffmpeg_bin],
         )
-    _run_step(
-        "Step 5: export review output" if args.mux_video else "Step 4: export review output",
-        "90_export_review_output.py",
-        common_job_args + ["--review-dir", args.review_dir],
-    )
-
     print("Local TTS pipeline completed.")
+    print(f"Lightweight files under output/{args.job_id}/ (*.json, *.txt, *.srt) can be committed.")
     return 0
 
 
