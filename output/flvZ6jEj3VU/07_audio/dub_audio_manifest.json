@@ -1,7 +1,7 @@
 {
   "job_id": "flvZ6jEj3VU",
-  "source_manifest": "tts/tts_manifest.json",
-  "output_wav": "dub_audio.wav",
+  "source_manifest": "06_tts/tts_manifest.json",
+  "output_wav": "07_audio/dub_audio.wav",
   "wav_params": {
     "nchannels": 1,
     "sampwidth": 2,
@@ -16,7 +16,7 @@
     {
       "index": 1,
       "segment_id": "seg_0001",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000001.wav",
       "target_start": 0.052,
       "target_end": 4.092,
@@ -39,7 +39,7 @@
     {
       "index": 2,
       "segment_id": "seg_0002",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000002.wav",
       "target_start": 4.632,
       "target_end": 9.372,
@@ -62,7 +62,7 @@
     {
       "index": 3,
       "segment_id": "seg_0003",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000003.wav",
       "target_start": 9.732,
       "target_end": 15.332,
@@ -85,7 +85,7 @@
     {
       "index": 4,
       "segment_id": "seg_0004",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000004.wav",
       "target_start": 15.452,
       "target_end": 20.992,
@@ -108,7 +108,7 @@
     {
       "index": 5,
       "segment_id": "seg_0005",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000005.wav",
       "target_start": 21.732,
       "target_end": 25.532,
@@ -131,7 +131,7 @@
     {
       "index": 6,
       "segment_id": "seg_0006",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000006.wav",
       "target_start": 27.152,
       "target_end": 33.632,
@@ -144,7 +144,7 @@
     {
       "index": 7,
       "segment_id": "seg_0007",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000007.wav",
       "target_start": 34.052,
       "target_end": 41.292,
@@ -167,7 +167,7 @@
     {
       "index": 8,
       "segment_id": "seg_0008",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000008.wav",
       "target_start": 41.492,
       "target_end": 45.612,
@@ -190,7 +190,7 @@
     {
       "index": 9,
       "segment_id": "seg_0009",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000009.wav",
       "target_start": 46.152,
       "target_end": 49.612,
@@ -213,7 +213,7 @@
     {
       "index": 10,
       "segment_id": "seg_0010",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000010.wav",
       "target_start": 49.612,
       "target_end": 52.512,
@@ -236,7 +236,7 @@
     {
       "index": 11,
       "segment_id": "seg_0011",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000011.wav",
       "target_start": 54.372,
       "target_end": 55.852,
@@ -259,7 +259,7 @@
     {
       "index": 12,
       "segment_id": "seg_0012",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000012.wav",
       "target_start": 56.672,
       "target_end": 59.892,
@@ -282,7 +282,7 @@
     {
       "index": 13,
       "segment_id": "seg_0013",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000013.wav",
       "target_start": 60.492,
       "target_end": 63.052,
@@ -305,7 +305,7 @@
     {
       "index": 14,
       "segment_id": "seg_0014",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000014.wav",
       "target_start": 63.612,
       "target_end": 66.212,
@@ -328,7 +328,7 @@
     {
       "index": 15,
       "segment_id": "seg_0015",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000015.wav",
       "target_start": 66.392,
       "target_end": 68.532,
@@ -351,7 +351,7 @@
     {
       "index": 16,
       "segment_id": "seg_0016",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000016.wav",
       "target_start": 69.452,
       "target_end": 72.272,
@@ -374,7 +374,7 @@
     {
       "index": 17,
       "segment_id": "seg_0017",
-      "status": "generated",
+      "status": "reused",
       "wav_path": "tts/segment_000017.wav",
       "target_start": 72.912,
       "target_end": 76.272,

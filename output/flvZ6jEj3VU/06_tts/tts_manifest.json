@@ -3,7 +3,7 @@
   "base_url": "http://127.0.0.1:10101",
   "speaker_id": 1937616896,
   "total_segments": 17,
-  "generated_at": "2026-05-07T06:14:08.673431+00:00",
+  "generated_at": "2026-05-07T07:40:20.129390+00:00",
   "items": [
     {
       "index": 1,
@@ -12,7 +12,7 @@
       "end": 4.092,
       "text": "みなさん、こんにちは。パット・デニスです。次の1分で、Codexの設定方法をお見せします。",
       "wav_path": "tts/segment_000001.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 2,
@@ -21,7 +21,7 @@
       "end": 9.372,
       "text": "まず最初に、自分がどんな仕事をしているかを伝えます。すると、私向けに",
       "wav_path": "tts/segment_000002.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 3,
@@ -30,7 +30,7 @@
       "end": 15.332,
       "text": "調整された体験になります。2つ目は、進めていたプロジェクトや、ほかの生産性向上ツール、",
       "wav_path": "tts/segment_000003.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 4,
@@ -39,7 +39,7 @@
       "end": 20.992,
       "text": "コーディングツールです。それらをワンクリックでCodexに移せます。3つ目は、",
       "wav_path": "tts/segment_000004.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 5,
@@ -48,7 +48,7 @@
       "end": 25.532,
       "text": "プラグインを設定することです。Codexに、文書の作成や、",
       "wav_path": "tts/segment_000005.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 6,
@@ -57,7 +57,7 @@
       "end": 33.632,
       "text": "スプレッドシートやプレゼンの作成、ブラウザーの利用、パソコンの操作、さらに",
       "wav_path": "tts/segment_000006.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 7,
@@ -66,7 +66,7 @@
       "end": 41.292,
       "text": "カレンダーやメール、Slack、Google Driveへのアクセスも許可します。そうすれば、Codexと話すだけで",
       "wav_path": "tts/segment_000007.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 8,
@@ -75,7 +75,7 @@
       "end": 45.612,
       "text": "こうしたいろいろなシステムと自然に連携できます。新しいサイドバーもすっきりしていて、",
       "wav_path": "tts/segment_000008.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 9,
@@ -84,7 +84,7 @@
       "end": 49.612,
       "text": "すぐ使えますし、これまで進めていたいろいろなプロジェクトも、",
       "wav_path": "tts/segment_000009.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 10,
@@ -93,7 +93,7 @@
       "end": 52.512,
       "text": "たとえばClaudeの中にあったものも、ここですぐ使えます。",
       "wav_path": "tts/segment_000010.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 11,
@@ -102,7 +102,7 @@
       "end": 55.852,
       "text": "次にできるのは、すぐ仕事に取りかかることです。",
       "wav_path": "tts/segment_000011.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 12,
@@ -111,7 +111,7 @@
       "end": 59.892,
       "text": "Codexに、次の会議の準備を頼みます。",
       "wav_path": "tts/segment_000012.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 13,
@@ -120,7 +120,7 @@
       "end": 63.052,
       "text": "GoogleカレンダーやGmailを検索して、",
       "wav_path": "tts/segment_000013.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 14,
@@ -129,7 +129,7 @@
       "end": 66.212,
       "text": "Slackも確認して、要点のメモを作ってもらいます。",
       "wav_path": "tts/segment_000014.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 15,
@@ -138,7 +138,7 @@
       "end": 68.532,
       "text": "そうすれば、次の営業電話にしっかり備えられます。",
       "wav_path": "tts/segment_000015.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 16,
@@ -147,7 +147,7 @@
       "end": 72.272,
       "text": "これで設定は完了です。接続されたコンテキストと、",
       "wav_path": "tts/segment_000016.wav",
-      "status": "generated"
+      "status": "reused"
     },
     {
       "index": 17,
@@ -156,7 +156,7 @@
       "end": 76.272,
       "text": "役立つ最初のワークフローが、約60秒でそろいます。",
       "wav_path": "tts/segment_000017.wav",
-      "status": "generated"
+      "status": "reused"
     }
   ]
 }

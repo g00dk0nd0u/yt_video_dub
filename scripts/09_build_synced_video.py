@@ -10,6 +10,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from path_layout import build_job_paths
+
 
 class SyncedVideoError(RuntimeError):
     """Raised when synced video building fails."""
@@ -130,11 +132,11 @@ def _load_json_object(path: Path, label: str) -> dict[str, Any]:
     return payload
 
 
-def _load_translated_segments(job_dir: Path) -> list[dict[str, Any]]:
-    payload = _load_json_object(job_dir / "translated_segments.json", "translated segments file")
+def _load_translated_segments(translated_segments_path: Path) -> list[dict[str, Any]]:
+    payload = _load_json_object(translated_segments_path, "translated segments file")
     segments = payload.get("segments")
     if not isinstance(segments, list):
-        raise SyncedVideoError("translated_segments.json is missing a segments list.")
+        raise SyncedVideoError(f"{translated_segments_path.name} is missing a segments list.")
 
     validated: list[dict[str, Any]] = []
     for index, segment in enumerate(segments, start=1):
@@ -164,8 +166,8 @@ def _load_translated_segments(job_dir: Path) -> list[dict[str, Any]]:
     return validated
 
 
-def _load_tts_manifest_items(job_dir: Path) -> dict[str, dict[str, Any]]:
-    payload = _load_json_object(job_dir / "tts" / "tts_manifest.json", "TTS manifest file")
+def _load_tts_manifest_items(tts_manifest_path: Path) -> dict[str, dict[str, Any]]:
+    payload = _load_json_object(tts_manifest_path, "TTS manifest file")
     items = payload.get("items")
     if not isinstance(items, list):
         raise SyncedVideoError("tts_manifest.json is missing an items list.")
@@ -375,17 +377,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.limit is not None and args.limit <= 0:
         raise SyncedVideoError("--limit must be greater than zero when provided.")
 
-    job_dir = Path(args.output_dir) / args.job_id
-    source_video_path = job_dir / "source.mp4"
-    synced_dir = job_dir / "synced_segments"
-    manifest_path = job_dir / "synced_video_manifest.json"
-    output_video_path = job_dir / "dubbed_video_synced.mp4"
+    paths = build_job_paths(args.output_dir, args.job_id)
+    job_dir = paths.job_dir
+    source_video_path = paths.resolve_source_video_path()
+    synced_dir = paths.synced_segments_dir
+    manifest_path = paths.synced_video_manifest_path
+    output_video_path = paths.dubbed_video_synced_path
     concat_list_path = synced_dir / "concat_segments.txt"
 
     _require_file(source_video_path, "source video")
 
-    segments = _load_translated_segments(job_dir)
-    tts_items_by_segment_id = _load_tts_manifest_items(job_dir)
+    segments = _load_translated_segments(paths.resolve_translated_segments_json_path())
+    tts_items_by_segment_id = _load_tts_manifest_items(paths.resolve_tts_manifest_path())
     records = _build_segment_records(segments, tts_items_by_segment_id)
     if args.limit is not None:
         records = records[: args.limit]
@@ -393,7 +396,7 @@ def main(argv: list[str] | None = None) -> int:
     if not records:
         raise SyncedVideoError("No segments to process.")
 
-    synced_dir.mkdir(parents=True, exist_ok=True)
+    paths.ensure_synced_video_dirs()
 
     manifest_items: list[dict[str, Any]] = []
     output_segment_paths: list[Path] = []

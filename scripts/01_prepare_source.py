@@ -10,6 +10,8 @@ from pathlib import Path
 
 from yt_dlp import YoutubeDL
 
+from path_layout import build_job_paths
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -22,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     source_group.add_argument(
         "--local-video",
-        help="Local video file to copy into output/<job_id>/source.mp4.",
+        help="Local video file to copy into output/<job_id>/01_source/source.mp4.",
     )
     parser.add_argument(
         "--job-id",
@@ -48,8 +50,8 @@ def _extract_youtube_metadata(youtube_url: str) -> dict:
     return info
 
 
-def _download_youtube_source(youtube_url: str, job_dir: Path) -> Path:
-    outtmpl = str(job_dir / "source.%(ext)s")
+def _download_youtube_source(youtube_url: str, source_dir: Path) -> Path:
+    outtmpl = str(source_dir / "source.%(ext)s")
     options = {
         "quiet": True,
         "no_warnings": True,
@@ -61,7 +63,7 @@ def _download_youtube_source(youtube_url: str, job_dir: Path) -> Path:
         result = ydl.extract_info(youtube_url, download=True)
         downloaded_path = Path(ydl.prepare_filename(result))
 
-    candidates = [job_dir / "source.mp4", downloaded_path]
+    candidates = [source_dir / "source.mp4", downloaded_path]
     for candidate in candidates:
         if candidate.exists():
             if candidate.name != "source.mp4":
@@ -70,14 +72,14 @@ def _download_youtube_source(youtube_url: str, job_dir: Path) -> Path:
                         "yt-dlp did not produce an mp4 file for this video. "
                         "Phase 1 currently requires source.mp4."
                     )
-                target = job_dir / "source.mp4"
+                target = source_dir / "source.mp4"
                 if target.exists():
                     target.unlink()
                 candidate.rename(target)
                 return target
             return candidate
 
-    matches = sorted(job_dir.glob("source.*"))
+    matches = sorted(source_dir.glob("source.*"))
     if matches:
         candidate = matches[0]
         if candidate.suffix.lower() != ".mp4":
@@ -85,7 +87,7 @@ def _download_youtube_source(youtube_url: str, job_dir: Path) -> Path:
                 "yt-dlp produced a non-mp4 source file. "
                 "Phase 1 currently requires source.mp4."
             )
-        target = job_dir / "source.mp4"
+        target = source_dir / "source.mp4"
         if target.exists():
             target.unlink()
         candidate.rename(target)
@@ -114,10 +116,9 @@ def prepare_source(
     if youtube_url:
         info = _extract_youtube_metadata(youtube_url)
         resolved_job_id = job_id or info["id"]
-        job_dir = output_dir_path / resolved_job_id
-        job_dir.mkdir(parents=True, exist_ok=True)
-        source_path = _download_youtube_source(youtube_url, job_dir)
-        (job_dir / "translation_output").mkdir(exist_ok=True)
+        paths = build_job_paths(output_dir_path, resolved_job_id)
+        paths.ensure_prepare_dirs()
+        source_path = _download_youtube_source(youtube_url, paths.source_dir)
         job_payload = {
             "job_id": resolved_job_id,
             "created_at": _utc_now_iso(),
@@ -125,11 +126,11 @@ def prepare_source(
             "youtube_url": youtube_url,
             "video_id": info["id"],
             "title": info.get("title"),
-            "source_path": str(source_path.relative_to(job_dir)),
+            "source_path": paths.rel_to_job(source_path),
         }
-        _write_job_file(job_dir / "job.json", job_payload)
+        _write_job_file(paths.job_json_path, job_payload)
         print(f"Prepared job: {resolved_job_id}")
-        print(f"Job directory: {job_dir}")
+        print(f"Job directory: {paths.job_dir}")
         return resolved_job_id
 
     resolved_job_id = job_id or "local-video"

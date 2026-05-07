@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import sys
 from pathlib import Path
 
 
@@ -19,6 +20,18 @@ FFPROBE_BIN = "ffprobe"
 def _load_pipeline_module():
     script_path = REPO_ROOT / "scripts" / "91_run_local_tts_pipeline.py"
     module_name = "user_tool_make_video"
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Failed to load script module: {script_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_path_layout_module():
+    script_path = REPO_ROOT / "scripts" / "path_layout.py"
+    module_name = "user_tool_path_layout_make_video"
     spec = importlib.util.spec_from_file_location(module_name, script_path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Failed to load script module: {script_path}")
@@ -97,10 +110,12 @@ def main() -> int:
 
     pipeline.main(args)
 
+    path_layout = _load_path_layout_module()
+    paths = path_layout.build_job_paths(OUTPUT_DIR, video_id)
     print("")
-    print(f"完成動画: output/{video_id}/dubbed_video_synced.mp4")
+    print(f"完成動画: {paths.dubbed_video_synced_path.as_posix()}")
     print(
-        f"軽量ファイルは output/{video_id}/ の json / txt / srt をそのままGitHubにpushできます。"
+        f"軽量ファイルは {paths.job_dir.as_posix()}/ 配下の json / txt / srt をそのままGitHubにpushできます。"
     )
     return 0
 

@@ -10,6 +10,8 @@ from pathlib import Path
 
 from youtube_transcript_api import YouTubeTranscriptApi
 
+from path_layout import build_job_paths
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -47,7 +49,7 @@ def _format_srt_timestamp(seconds: float) -> str:
 
 
 def _load_job_payload(job_dir: Path) -> dict:
-    job_path = job_dir / "job.json"
+    job_path = build_job_paths(job_dir.parent, job_dir.name).resolve_job_json_path()
     if not job_path.exists():
         raise FileNotFoundError(f"Missing job file: {job_path}")
     return json.loads(job_path.read_text(encoding="utf-8"))
@@ -76,7 +78,7 @@ def _select_transcript(video_id: str, language: str):
     )
 
 
-def _write_transcript_json(job_dir: Path, transcript, segments: list[dict]) -> None:
+def _write_transcript_json(job_path, transcript, segments: list[dict]) -> None:
     payload = {
         "video_id": transcript.video_id,
         "language": transcript.language,
@@ -84,13 +86,13 @@ def _write_transcript_json(job_dir: Path, transcript, segments: list[dict]) -> N
         "is_generated": transcript.is_generated,
         "segments": segments,
     }
-    (job_dir / "transcript_original.json").write_text(
+    job_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
 
-def _write_transcript_srt(job_dir: Path, segments: list[dict]) -> None:
+def _write_transcript_srt(job_path, segments: list[dict]) -> None:
     lines: list[str] = []
     for index, segment in enumerate(segments, start=1):
         lines.extend(
@@ -104,7 +106,7 @@ def _write_transcript_srt(job_dir: Path, segments: list[dict]) -> None:
                 "",
             ]
         )
-    (job_dir / "transcript_original.srt").write_text(
+    job_path.write_text(
         "\n".join(lines).rstrip() + "\n",
         encoding="utf-8",
     )
@@ -114,8 +116,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    job_dir = Path(args.output_dir) / args.job_id
-    job_payload = _load_job_payload(job_dir)
+    paths = build_job_paths(args.output_dir, args.job_id)
+    paths.ensure_prepare_dirs()
+    job_payload = _load_job_payload(paths.job_dir)
     video_id = job_payload.get("video_id")
     if not video_id:
         raise RuntimeError(
@@ -145,8 +148,8 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
 
-    _write_transcript_json(job_dir, transcript, segments)
-    _write_transcript_srt(job_dir, segments)
+    _write_transcript_json(paths.transcript_json_path, transcript, segments)
+    _write_transcript_srt(paths.transcript_srt_path, segments)
     print(f"Saved transcript for job: {args.job_id}")
     print(f"Language: {transcript.language_code}")
     return 0

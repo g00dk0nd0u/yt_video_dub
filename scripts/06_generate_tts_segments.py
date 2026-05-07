@@ -11,6 +11,8 @@ from typing import Any
 
 import requests
 
+from path_layout import build_job_paths
+
 
 DEFAULT_TIMEOUT = 30.0
 
@@ -110,8 +112,7 @@ def _raise_http_error(step: str, response: requests.Response) -> None:
     )
 
 
-def _load_translated_segments(job_dir: Path) -> list[dict[str, Any]]:
-    translated_segments_path = job_dir / "translated_segments.json"
+def _load_translated_segments(translated_segments_path: Path) -> list[dict[str, Any]]:
     if not translated_segments_path.exists():
         raise FileNotFoundError(f"Missing translated segments file: {translated_segments_path}")
 
@@ -328,12 +329,14 @@ def main(argv: list[str] | None = None) -> int:
     ):
         raise TTSError("--start-index must be less than or equal to --end-index.")
 
-    job_dir = Path(args.output_dir) / args.job_id
-    tts_dir = job_dir / "tts"
-    manifest_path = tts_dir / "tts_manifest.json"
+    paths = build_job_paths(args.output_dir, args.job_id)
+    legacy_tts_dir = paths.job_dir / "tts"
+    tts_dir = paths.tts_dir
+    manifest_path = paths.tts_manifest_path
     base_url = _normalize_base_url(args.base_url)
+    paths.ensure_tts_dirs()
 
-    segments = _load_translated_segments(job_dir)
+    segments = _load_translated_segments(paths.resolve_translated_segments_json_path())
     total_segments = len(segments)
     process_segments, has_range = _select_process_segments(
         segments=segments,
@@ -357,8 +360,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         for item_index, segment in process_segments:
             wav_filename = f"segment_{item_index:06d}.wav"
-            wav_relative_path = f"tts/{wav_filename}"
             wav_output_path = tts_dir / wav_filename
+            reuse_candidates = [wav_output_path]
+            if legacy_tts_dir != tts_dir:
+                reuse_candidates.append(legacy_tts_dir / wav_filename)
             text = segment["text"]
 
             if text == "":
@@ -369,13 +374,23 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"[{item_index}/{total_segments}] segment_id={segment['segment_id']} status={status}")
                 continue
 
-            if args.resume and not args.force and wav_output_path.exists():
-                status = "reused"
-                manifest_items.append(
-                    _build_manifest_item(item_index, segment, wav_relative_path, status)
-                )
-                print(f"[{item_index}/{total_segments}] segment_id={segment['segment_id']} status={status}")
-                continue
+            if args.resume and not args.force:
+                for reuse_candidate in reuse_candidates:
+                    if reuse_candidate.exists():
+                        status = "reused"
+                        wav_relative_path = paths.rel_to_job(reuse_candidate)
+                        manifest_items.append(
+                            _build_manifest_item(item_index, segment, wav_relative_path, status)
+                        )
+                        print(
+                            f"[{item_index}/{total_segments}] "
+                            f"segment_id={segment['segment_id']} status={status}"
+                        )
+                        break
+                else:
+                    reuse_candidate = None
+                if reuse_candidate is not None:
+                    continue
 
             audio_query_payload = _post_audio_query(
                 session=session,
@@ -394,6 +409,7 @@ def main(argv: list[str] | None = None) -> int:
             wav_output_path.write_bytes(wav_bytes)
 
             status = "generated"
+            wav_relative_path = paths.rel_to_job(wav_output_path)
             manifest_items.append(
                 _build_manifest_item(item_index, segment, wav_relative_path, status)
             )

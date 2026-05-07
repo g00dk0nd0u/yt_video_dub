@@ -1,6 +1,6 @@
 {
   "job_id": "flvZ6jEj3VU",
-  "source_manifest": "translation_input/manifest.json",
+  "source_manifest": "03_translation_input/manifest.json",
   "segments": [
     {
       "segment_id": "seg_0001",

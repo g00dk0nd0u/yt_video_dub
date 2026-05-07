@@ -38,7 +38,7 @@ python user_tools/99_cleanup.py
 普段ユーザーが触るのは `user_tools/` の3本だけです。
 
 1. `user_tools/01_new_youtube.py` を実行して YouTube URL を貼る
-2. Codex に URL を渡した場合は、`scripts/run_prepare.py` 実行と `output/<video_id>/translation_input/chunk_*.txt` の翻訳を行い、`output/<video_id>/translation_output/chunk_*.txt` まで作る
+2. Codex に URL を渡した場合は、`scripts/run_prepare.py` 実行と `output/<video_id>/03_translation_input/chunk_*.txt` の翻訳を行い、`output/<video_id>/04_translation_output/chunk_*.txt` まで作る
 3. 動画生成はユーザーの Mac で AivisSpeech を起動してから `user_tools/02_make_video.py` を実行する
 4. `output/<video_id>/dubbed_video_synced.mp4` を開く
 5. 掃除したい時は `user_tools/99_cleanup.py` を実行する
@@ -75,23 +75,34 @@ python3 scripts/91_run_local_tts_pipeline.py \
 
 ```
 output/<video_id>/
-  job.json
-  source.mp4
-  transcript_original.json
-  transcript_original.srt
-  translation_input/
+  dubbed_video_synced.mp4
+
+  01_source/
+    source.mp4
+    job.json
+  02_transcript/
+    transcript_original.json
+    transcript_original.srt
+  03_translation_input/
     manifest.json
     chunk_0001.txt
-  translation_output/
-  translated_segments.json
-  translated_segments.srt
-  tts/
-  dub_audio.wav
-  dubbed_video_synced.mp4
-  dubbed_video.mp4
+  04_translation_output/
+  05_segments/
+    translated_segments.json
+    translated_segments.srt
+  06_tts/
+    tts_manifest.json
+  07_audio/
+    dub_audio.wav
+    dub_audio_manifest.json
+  08_synced_video/
+    synced_video_manifest.json
+    synced_segments/
+  09_simple_mux/
+    dubbed_video.mp4
 ```
 
-すべての作業ファイルは `output/<video_id>/` にまとまります。`job.json` を含む軽量な進行管理ファイルと、音声・動画などの重い生成物がここに入ります。通常の完成動画は `dubbed_video_synced.mp4` です。`dubbed_video.mp4` は `scripts/08_mux_video.py` による簡易 mux 版として残しています。
+Finder では `output/<video_id>/dubbed_video_synced.mp4` だけが完成動画として直下に見えます。その他の中間成果物は工程順の番号付きフォルダへ入り、`dubbed_video.mp4` を使う場合も `09_simple_mux/` に入ります。
 
 ## Git Tracking Policy
 

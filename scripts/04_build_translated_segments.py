@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
+
+from path_layout import build_job_paths
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -33,14 +34,13 @@ def _format_srt_timestamp(seconds: float) -> str:
     return f"{hours:02}:{minutes:02}:{secs:02},{millis:03}"
 
 
-def _load_manifest(job_dir: Path) -> dict:
-    manifest_path = job_dir / "translation_input" / "manifest.json"
+def _load_manifest(manifest_path) -> dict:
     if not manifest_path.exists():
         raise FileNotFoundError(f"Missing manifest file: {manifest_path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     chunks = manifest.get("chunks")
     if not isinstance(chunks, list) or not chunks:
-        raise RuntimeError("translation_input/manifest.json does not contain any chunks.")
+        raise RuntimeError(f"{manifest_path} does not contain any chunks.")
     return manifest
 
 
@@ -111,19 +111,19 @@ def _validate_chunk_pair(
     return merged_items
 
 
-def _write_translated_segments_json(job_dir: Path, job_id: str, segments: list[dict]) -> None:
+def _write_translated_segments_json(output_path, source_manifest: str, job_id: str, segments: list[dict]) -> None:
     payload = {
         "job_id": job_id,
-        "source_manifest": "translation_input/manifest.json",
+        "source_manifest": source_manifest,
         "segments": segments,
     }
-    (job_dir / "translated_segments.json").write_text(
+    output_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
 
-def _write_translated_segments_srt(job_dir: Path, segments: list[dict]) -> None:
+def _write_translated_segments_srt(output_path, segments: list[dict]) -> None:
     lines: list[str] = []
     for index, segment in enumerate(segments, start=1):
         lines.extend(
@@ -137,7 +137,7 @@ def _write_translated_segments_srt(job_dir: Path, segments: list[dict]) -> None:
                 "",
             ]
         )
-    (job_dir / "translated_segments.srt").write_text(
+    output_path.write_text(
         "\n".join(lines).rstrip() + "\n",
         encoding="utf-8",
     )
@@ -147,10 +147,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    job_dir = Path(args.output_dir) / args.job_id
-    manifest = _load_manifest(job_dir)
-    translation_input_dir = job_dir / "translation_input"
-    translation_output_dir = job_dir / "translation_output"
+    paths = build_job_paths(args.output_dir, args.job_id)
+    paths.segments_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = paths.resolve_translation_manifest_path()
+    manifest = _load_manifest(manifest_path)
+    translation_input_dir = paths.resolve_translation_input_dir()
+    translation_output_dir = paths.resolve_translation_output_dir()
 
     translated_segments: list[dict] = []
     for chunk in manifest["chunks"]:
@@ -173,8 +175,13 @@ def main(argv: list[str] | None = None) -> int:
             f"{len(translated_segments)} != {expected_total}"
         )
 
-    _write_translated_segments_json(job_dir, args.job_id, translated_segments)
-    _write_translated_segments_srt(job_dir, translated_segments)
+    _write_translated_segments_json(
+        paths.translated_segments_json_path,
+        paths.rel_to_job(manifest_path),
+        args.job_id,
+        translated_segments,
+    )
+    _write_translated_segments_srt(paths.translated_segments_srt_path, translated_segments)
     print(f"Built translated segment artifacts for job: {args.job_id}")
     return 0
 

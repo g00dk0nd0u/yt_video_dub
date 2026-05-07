@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
+
+from path_layout import build_job_paths
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -31,8 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _load_segments(job_dir: Path) -> list[dict]:
-    transcript_path = job_dir / "transcript_original.json"
+def _load_segments(transcript_path) -> list[dict]:
     if not transcript_path.exists():
         raise FileNotFoundError(f"Missing transcript file: {transcript_path}")
     payload = json.loads(transcript_path.read_text(encoding="utf-8"))
@@ -53,12 +53,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.chunk_size <= 0:
         raise ValueError("--chunk-size must be greater than zero.")
 
-    job_dir = Path(args.output_dir) / args.job_id
-    segments = _load_segments(job_dir)
-    translation_input_dir = job_dir / "translation_input"
-    translation_output_dir = job_dir / "translation_output"
-    translation_input_dir.mkdir(parents=True, exist_ok=True)
-    translation_output_dir.mkdir(parents=True, exist_ok=True)
+    paths = build_job_paths(args.output_dir, args.job_id)
+    paths.ensure_prepare_dirs()
+    segments = _load_segments(paths.resolve_transcript_json_path())
+    translation_input_dir = paths.translation_input_dir
+    translation_output_dir = paths.translation_output_dir
 
     manifest_chunks = []
     for chunk_index, chunk_segments in _chunked(segments, args.chunk_size):
@@ -88,13 +87,13 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest = {
         "job_id": args.job_id,
-        "source_transcript": "transcript_original.json",
+        "source_transcript": paths.rel_to_job(paths.transcript_json_path),
         "format": "jsonl",
         "chunk_size": args.chunk_size,
         "total_segments": len(segments),
         "chunks": manifest_chunks,
     }
-    (translation_input_dir / "manifest.json").write_text(
+    paths.translation_manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
