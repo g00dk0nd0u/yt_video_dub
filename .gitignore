@@ -35,14 +35,14 @@ data/**
 
 # Generated pipeline outputs
 output/**
+!output/
 !output/.gitkeep
-
-# Lightweight review exports can be committed, but keep heavy media ignored.
-review_outputs/
-!review_outputs/
-!review_outputs/**
-review_outputs/**/*.mp4
-review_outputs/**/*.wav
-review_outputs/**/*.mov
-review_outputs/**/*.m4a
-review_outputs/**/*.aac
+!output/**/
+!output/**/*.json
+!output/**/*.txt
+!output/**/*.srt
+output/**/*.mp4
+output/**/*.wav
+output/**/*.mov
+output/**/*.m4a
+output/**/*.aac
