@@ -11,7 +11,7 @@
   },
   "total_items": 61,
   "processed_items": 61,
-  "warnings_count": 6,
+  "warnings_count": 4,
   "items": [
     {
       "index": 1,
@@ -97,8 +97,8 @@
       "target_start": 40.52,
       "target_end": 42.92,
       "actual_start": 40.52,
-      "actual_end": 42.08986394557823,
-      "wav_duration": 1.5698639455782313,
+      "actual_end": 42.08562358276644,
+      "wav_duration": 1.56562358276644,
       "silence_inserted": 2.2924263038548753,
       "warning": null
     },
@@ -110,9 +110,9 @@
       "target_start": 43.0,
       "target_end": 45.12,
       "actual_start": 43.0,
-      "actual_end": 44.47707482993197,
-      "wav_duration": 1.4770748299319727,
-      "silence_inserted": 0.9101360544217687,
+      "actual_end": 44.4887074829932,
+      "wav_duration": 1.4887074829931972,
+      "silence_inserted": 0.9143764172335601,
       "warning": null
     },
     {
@@ -123,9 +123,9 @@
       "target_start": 45.2,
       "target_end": 47.08,
       "actual_start": 45.2,
-      "actual_end": 47.05641723356009,
-      "wav_duration": 1.8564172335600908,
-      "silence_inserted": 0.7229251700680273,
+      "actual_end": 47.00988662131519,
+      "wav_duration": 1.8098866213151927,
+      "silence_inserted": 0.7112925170068027,
       "warning": null
     },
     {
@@ -136,9 +136,9 @@
       "target_start": 47.32,
       "target_end": 51.12,
       "actual_start": 47.32,
-      "actual_end": 50.67401360544218,
-      "wav_duration": 3.354013605442177,
-      "silence_inserted": 0.2635827664399093,
+      "actual_end": 50.33975056689342,
+      "wav_duration": 3.019750566893424,
+      "silence_inserted": 0.31011337868480726,
       "warning": null
     },
     {
@@ -149,9 +149,9 @@
       "target_start": 51.48,
       "target_end": 53.48,
       "actual_start": 51.48,
-      "actual_end": 53.36321995464853,
-      "wav_duration": 1.883219954648526,
-      "silence_inserted": 0.8059863945578232,
+      "actual_end": 52.92199546485261,
+      "wav_duration": 1.4419954648526077,
+      "silence_inserted": 1.140249433106576,
       "warning": null
     },
     {
@@ -162,9 +162,9 @@
       "target_start": 53.6,
       "target_end": 55.52,
       "actual_start": 53.6,
-      "actual_end": 55.39056689342404,
-      "wav_duration": 1.7905668934240362,
-      "silence_inserted": 0.23678004535147393,
+      "actual_end": 55.27424036281179,
+      "wav_duration": 1.6742403628117914,
+      "silence_inserted": 0.6780045351473923,
       "warning": null
     },
     {
@@ -175,9 +175,9 @@
       "target_start": 55.72,
       "target_end": 59.36,
       "actual_start": 55.72,
-      "actual_end": 58.78342403628118,
-      "wav_duration": 3.0634240362811793,
-      "silence_inserted": 0.3294331065759637,
+      "actual_end": 58.646643990929704,
+      "wav_duration": 2.9266439909297053,
+      "silence_inserted": 0.4457596371882086,
       "warning": null
     },
     {
@@ -188,9 +188,9 @@
       "target_start": 60.8,
       "target_end": 64.8,
       "actual_start": 60.8,
-      "actual_end": 63.921292517006805,
-      "wav_duration": 3.1212925170068027,
-      "silence_inserted": 2.0165759637188208,
+      "actual_end": 63.88868480725623,
+      "wav_duration": 3.088684807256236,
+      "silence_inserted": 2.153356009070295,
       "warning": null
     },
     {
@@ -201,20 +201,10 @@
       "target_start": 64.88,
       "target_end": 69.04,
       "actual_start": 64.88,
-      "actual_end": 69.44054421768708,
-      "wav_duration": 4.560544217687075,
-      "silence_inserted": 0.9587074829931973,
-      "warning": {
-        "index": 15,
-        "segment_id": "seg_0015",
-        "target_start": 64.88,
-        "actual_start": 64.88,
-        "original_end": 69.04,
-        "wav_duration": 4.560544217687075,
-        "timing_delta": 0.4005442176870748,
-        "timing_status": "overlaps_next_segment",
-        "next_target_start": 69.12
-      }
+      "actual_end": 68.09859410430839,
+      "wav_duration": 3.21859410430839,
+      "silence_inserted": 0.9913151927437641,
+      "warning": null
     },
     {
       "index": 16,
@@ -223,10 +213,10 @@
       "wav_path": "tts/segment_000016.wav",
       "target_start": 69.12,
       "target_end": 72.96,
-      "actual_start": 69.44054421768708,
-      "actual_end": 72.81843537414966,
-      "wav_duration": 3.377891156462585,
-      "silence_inserted": 0.0,
+      "actual_start": 69.12,
+      "actual_end": 72.5822902494331,
+      "wav_duration": 3.4622902494331065,
+      "silence_inserted": 1.0214058956916099,
       "warning": null
     },
     {
@@ -237,9 +227,9 @@
       "target_start": 73.36,
       "target_end": 77.2,
       "actual_start": 73.36,
-      "actual_end": 76.73909297052154,
-      "wav_duration": 3.379092970521542,
-      "silence_inserted": 0.5415646258503402,
+      "actual_end": 76.65981859410431,
+      "wav_duration": 3.2998185941043086,
+      "silence_inserted": 0.7777097505668934,
       "warning": null
     },
     {
@@ -250,9 +240,9 @@
       "target_start": 77.4,
       "target_end": 82.04,
       "actual_start": 77.4,
-      "actual_end": 80.60696145124716,
-      "wav_duration": 3.2069614512471656,
-      "silence_inserted": 0.660907029478458,
+      "actual_end": 80.59517006802722,
+      "wav_duration": 3.195170068027211,
+      "silence_inserted": 0.7401814058956916,
       "warning": null
     },
     {
@@ -263,20 +253,10 @@
       "target_start": 82.4,
       "target_end": 85.24,
       "actual_start": 82.4,
-      "actual_end": 85.85065759637189,
-      "wav_duration": 3.450657596371882,
-      "silence_inserted": 1.7930385487528344,
-      "warning": {
-        "index": 19,
-        "segment_id": "seg_0019",
-        "target_start": 82.4,
-        "actual_start": 82.4,
-        "original_end": 85.24,
-        "wav_duration": 3.450657596371882,
-        "timing_delta": 0.6106575963718821,
-        "timing_status": "overlaps_next_segment",
-        "next_target_start": 85.32
-      }
+      "actual_end": 84.861179138322,
+      "wav_duration": 2.4611791383219956,
+      "silence_inserted": 1.8048299319727892,
+      "warning": null
     },
     {
       "index": 20,
@@ -285,10 +265,10 @@
       "wav_path": "tts/segment_000020.wav",
       "target_start": 85.32,
       "target_end": 87.28,
-      "actual_start": 85.85065759637189,
-      "actual_end": 87.76920634920634,
-      "wav_duration": 1.9185487528344671,
-      "silence_inserted": 0.0,
+      "actual_start": 85.32,
+      "actual_end": 86.7737641723356,
+      "wav_duration": 1.453764172335601,
+      "silence_inserted": 0.4588208616780045,
       "warning": null
     },
     {
@@ -298,10 +278,10 @@
       "wav_path": "tts/segment_000021.wav",
       "target_start": 87.36,
       "target_end": 89.32,
-      "actual_start": 87.76920634920634,
-      "actual_end": 89.68292517006803,
+      "actual_start": 87.36,
+      "actual_end": 89.27371882086167,
       "wav_duration": 1.913718820861678,
-      "silence_inserted": 0.0,
+      "silence_inserted": 0.5862358276643991,
       "warning": null
     },
     {
@@ -311,10 +291,10 @@
       "wav_path": "tts/segment_000022.wav",
       "target_start": 89.44,
       "target_end": 93.72,
-      "actual_start": 89.68292517006803,
-      "actual_end": 93.00265306122449,
+      "actual_start": 89.44,
+      "actual_end": 92.75972789115646,
       "wav_duration": 3.3197278911564627,
-      "silence_inserted": 0.0,
+      "silence_inserted": 0.166281179138322,
       "warning": null
     },
     {
@@ -327,7 +307,7 @@
       "actual_start": 93.8,
       "actual_end": 95.70049886621315,
       "wav_duration": 1.900498866213152,
-      "silence_inserted": 0.7973469387755102,
+      "silence_inserted": 1.0402721088435374,
       "warning": null
     },
     {
