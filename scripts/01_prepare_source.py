@@ -101,39 +101,55 @@ def _write_job_file(job_path: Path, payload: dict) -> None:
     )
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
+def prepare_source(
+    *,
+    youtube_url: str | None,
+    local_video: str | None,
+    job_id: str | None,
+    output_dir: str,
+) -> str:
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
 
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    if args.youtube_url:
-        info = _extract_youtube_metadata(args.youtube_url)
-        job_id = args.job_id or info["id"]
-        job_dir = output_dir / job_id
+    if youtube_url:
+        info = _extract_youtube_metadata(youtube_url)
+        resolved_job_id = job_id or info["id"]
+        job_dir = output_dir_path / resolved_job_id
         job_dir.mkdir(parents=True, exist_ok=True)
-        source_path = _download_youtube_source(args.youtube_url, job_dir)
+        source_path = _download_youtube_source(youtube_url, job_dir)
         (job_dir / "translation_output").mkdir(exist_ok=True)
         job_payload = {
-            "job_id": job_id,
+            "job_id": resolved_job_id,
             "created_at": _utc_now_iso(),
             "source_type": "youtube",
-            "youtube_url": args.youtube_url,
+            "youtube_url": youtube_url,
             "video_id": info["id"],
             "title": info.get("title"),
             "source_path": str(source_path.relative_to(job_dir)),
         }
         _write_job_file(job_dir / "job.json", job_payload)
-        print(f"Prepared job: {job_id}")
+        print(f"Prepared job: {resolved_job_id}")
         print(f"Job directory: {job_dir}")
-        return 0
+        return resolved_job_id
 
-    job_id = args.job_id or "local-video"
+    resolved_job_id = job_id or "local-video"
     raise NotImplementedError(
         "Local video input is reserved for a later phase. "
-        f"Received --local-video for job_id='{job_id}'."
+        f"Received --local-video for job_id='{resolved_job_id}'."
     )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    prepare_source(
+        youtube_url=args.youtube_url,
+        local_video=args.local_video,
+        job_id=args.job_id,
+        output_dir=args.output_dir,
+    )
+    return 0
 
 
 if __name__ == "__main__":
