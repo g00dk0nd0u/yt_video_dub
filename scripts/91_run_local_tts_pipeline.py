@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,10 @@ DEFAULT_JOB_ID = "phase1_smoke_rick"
 DEFAULT_OUTPUT_DIR = "output"
 DEFAULT_BASE_URL = "http://127.0.0.1:10101"
 DEFAULT_SPEAKER_ID = 1937616896
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -84,7 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _load_script_module(filename: str) -> Any:
-    script_path = Path(__file__).with_name(filename)
+    script_path = SCRIPT_DIR / filename
     module_name = f"local_tts_pipeline_{filename.replace('.', '_').replace('-', '_')}"
     spec = importlib.util.spec_from_file_location(module_name, script_path)
     if spec is None or spec.loader is None:
