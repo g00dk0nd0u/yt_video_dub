@@ -31,3 +31,7 @@ Thumbs.db
 
 # Ignore all contents under data
 data/**
+
+# Generated pipeline outputs
+output/**
+!output/.gitkeep
