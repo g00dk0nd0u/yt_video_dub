@@ -97,8 +97,8 @@
       "target_start": 40.52,
       "target_end": 42.92,
       "actual_start": 40.52,
-      "actual_end": 42.08562358276644,
-      "wav_duration": 1.56562358276644,
+      "actual_end": 42.084263038548755,
+      "wav_duration": 1.5642630385487528,
       "silence_inserted": 2.2924263038548753,
       "warning": null
     },
@@ -110,9 +110,9 @@
       "target_start": 43.0,
       "target_end": 45.12,
       "actual_start": 43.0,
-      "actual_end": 44.4887074829932,
-      "wav_duration": 1.4887074829931972,
-      "silence_inserted": 0.9143764172335601,
+      "actual_end": 44.45369614512472,
+      "wav_duration": 1.4536961451247166,
+      "silence_inserted": 0.9157369614512472,
       "warning": null
     },
     {
@@ -125,7 +125,7 @@
       "actual_start": 45.2,
       "actual_end": 47.00988662131519,
       "wav_duration": 1.8098866213151927,
-      "silence_inserted": 0.7112925170068027,
+      "silence_inserted": 0.7463038548752835,
       "warning": null
     },
     {
