@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the Phase 1 preparation steps."""
+"""Prepare source files, transcripts, and translation chunks."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Phase 1 wrapper: prepare source, transcript, and translation chunks."
+        description="Prepare source files, transcripts, and translation chunks."
     )
     source_group = parser.add_mutually_exclusive_group(required=True)
     source_group.add_argument(
@@ -91,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     print("")
-    print("Phase 1 completed.")
+    print("Preparation completed.")
     print(f"Job ID: {job_id}")
     print("Next step in Codex: read docs/translation_mode.md and translate the files in translation_input/.")
     return 0
