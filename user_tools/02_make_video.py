@@ -72,7 +72,7 @@ def main() -> int:
         return 1
 
     video_id = _prompt_with_default("動画ID", latest_video_id)
-    make_audio = _prompt_yes_no("日本語音声を作り直しますか？", default_yes=True)
+    make_audio = _prompt_yes_no("日本語音声を作成しますか？", default_yes=True)
     make_mp4 = _prompt_yes_no("音と映像を合わせたMP4動画を作りますか？", default_yes=True)
 
     pipeline = _load_pipeline_module()
