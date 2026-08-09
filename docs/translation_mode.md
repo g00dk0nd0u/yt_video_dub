@@ -15,6 +15,7 @@ This document is for the translation step only. Keep general development rules i
 - Preserve line count.
 - Preserve chunk number.
 - Preserve segment ID.
+- Preserve start, end, and duration values exactly.
 - Keep the original ordering.
 
 ## Content Rules
