@@ -1,12 +1,23 @@
+import io
 import json
 import struct
 import wave
+
+import pytest
 
 
 def _wav(path, frames, rate=1000):
     with wave.open(str(path), "wb") as writer:
         writer.setparams((1, 2, rate, frames, "NONE", "not compressed"))
         writer.writeframes(struct.pack("<h", 1000) * frames)
+
+
+def _wav_bytes(frames, rate=1000):
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as writer:
+        writer.setparams((1, 2, rate, frames, "NONE", "not compressed"))
+        writer.writeframes(struct.pack("<h", 1000) * frames)
+    return buffer.getvalue()
 
 
 def test_absolute_audio_placement_and_overflow_report(tmp_path, load_script):
@@ -48,3 +59,159 @@ def test_legacy_transcript_path_fallback(tmp_path):
     legacy.parent.mkdir(parents=True)
     legacy.write_text("{}")
     assert build_job_paths(tmp_path, "job").resolve_transcript_json_path() == legacy
+
+
+def test_duration_fit_classification(load_script):
+    module = load_script("06_generate_tts_segments.py")
+    status, speed, retry = module._classify_duration(3.92, 4.2)
+    assert (status, retry) == ("ok", False)
+    assert speed == pytest.approx(3.92 / 4.2)
+    status, speed, retry = module._classify_duration(4.32, 4.0)
+    assert (status, retry) == ("retry", True)
+    assert speed == pytest.approx(1.08)
+    status, speed, retry = module._classify_duration(5.4, 4.0)
+    assert (status, retry) == ("ng", False)
+    assert speed == pytest.approx(1.35)
+
+
+def test_speed_retry_result_must_be_measured(load_script):
+    module = load_script("06_generate_tts_segments.py")
+    fields = module._fit_fields(4.0, 4.32, 4.05, 1.08, "ng", 1)
+    assert fields["fit_status"] == "ng"
+    assert fields["translation_retry_required"] is True
+    assert fields["retry_count"] == 1
+
+
+def test_retry_artifact_contains_only_ng_and_shorter_target(tmp_path, load_script):
+    module = load_script("06_generate_tts_segments.py")
+    path = tmp_path / "duration_retry_required.jsonl"
+    common = {"start": 1.0, "end": 5.0, "available_duration": 4.0,
+              "raw_tts_duration": 5.4, "text": "これは長すぎる翻訳です"}
+    module._write_retry_artifact(path, [
+        {**common, "segment_id": "bad", "translation_retry_required": True},
+        {**common, "segment_id": "good", "translation_retry_required": False},
+    ])
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert [row["segment_id"] for row in rows] == ["bad"]
+    assert rows[0]["target_chars"] < len(common["text"])
+
+
+def test_segment_id_selector_intersects_range_without_changing_timestamps(load_script):
+    module = load_script("06_generate_tts_segments.py")
+    segments = [
+        {"segment_id": "utt_0001", "start": 0.0, "end": 1.0},
+        {"segment_id": "utt_0002", "start": 2.0, "end": 3.0},
+        {"segment_id": "utt_0003", "start": 4.0, "end": 5.0},
+    ]
+    selected, partial = module._select_process_segments(
+        segments, 2, 3, None, ["utt_0001", "utt_0003"]
+    )
+    assert partial is True
+    assert selected == [(3, segments[2])]
+    assert segments[2]["start"] == 4.0
+
+
+def test_resume_cache_requires_same_segment_and_voice_and_preserves_fit_metadata(load_script):
+    module = load_script("06_generate_tts_segments.py")
+    segment = {"segment_id": "utt_0001", "text": "同じ翻訳", "start": 0.0, "end": 4.0}
+    metadata = module._fit_fields(4.0, 4.32, 3.98, 1.08, "fitted", 1)
+    existing = {**segment, **metadata}
+    settings = {"base_url": "http://127.0.0.1:10101", "speaker_id": 10}
+
+    assert module._is_reusable_tts(existing, segment, settings, settings) is True
+    assert module._is_reusable_tts(existing, {**segment, "text": "短い翻訳"},
+                                   settings, settings) is False
+    assert module._is_reusable_tts(existing, segment, settings,
+                                   {**settings, "speaker_id": 11}) is False
+    assert module._reused_fit_metadata(existing, 4.0, 3.98) == metadata
+
+
+def test_unchanged_resume_reuses_wav_and_keeps_fitted_metadata(tmp_path, load_script, monkeypatch):
+    module = load_script("06_generate_tts_segments.py")
+    job = tmp_path / "job"
+    (job / "05_segments").mkdir(parents=True)
+    (job / "06_tts").mkdir()
+    segment = {"segment_id": "utt_0001", "start": 0.0, "end": 4.0, "text": "同じ翻訳"}
+    (job / "05_segments/translated_segments.json").write_text(
+        json.dumps({"segments": [segment]})
+    )
+    _wav(job / "06_tts/segment_000001.wav", 3980)
+    metadata = module._fit_fields(4.0, 4.32, 3.98, 1.08, "fitted", 1)
+    (job / "06_tts/tts_manifest.json").write_text(json.dumps({
+        "base_url": "http://aivis", "speaker_id": 10, "items": [{
+            "index": 1, **segment, "wav_path": "06_tts/segment_000001.wav",
+            "status": "generated", **metadata,
+        }]
+    }))
+    monkeypatch.setattr(module, "_post_synthesis",
+                        lambda **kwargs: pytest.fail("unchanged cache should be reused"))
+
+    module.main(["--job-id", "job", "--output-dir", str(tmp_path),
+                 "--base-url", "http://aivis/", "--speaker-id", "10", "--resume"])
+
+    item = json.loads((job / "06_tts/tts_manifest.json").read_text())["items"][0]
+    assert item["status"] == "reused"
+    assert {field: item[field] for field in module.FIT_METADATA_FIELDS} == metadata
+
+
+def test_corrected_text_resume_regenerates_and_updates_selective_retry_artifact(
+    tmp_path, load_script, monkeypatch
+):
+    module = load_script("06_generate_tts_segments.py")
+    job = tmp_path / "job"
+    segments_dir = job / "05_segments"
+    tts_dir = job / "06_tts"
+    segments_dir.mkdir(parents=True)
+    tts_dir.mkdir()
+    current_segment = {
+        "segment_id": "utt_0001", "start": 0.0, "end": 4.0, "text": "短い翻訳"
+    }
+    (segments_dir / "translated_segments.json").write_text(json.dumps({
+        "segments": [current_segment, {
+            "segment_id": "utt_0002", "start": 4.0, "end": 8.0, "text": "別の長い翻訳"
+        }]
+    }))
+    _wav(tts_dir / "segment_000001.wav", 5400)
+    old_ng = module._fit_fields(4.0, 5.4, 5.4, 1.0, "ng", 0)
+    (tts_dir / "tts_manifest.json").write_text(json.dumps({
+        "base_url": "http://aivis", "speaker_id": 10, "items": [
+            {"index": 1, "segment_id": "utt_0001", "start": 0.0, "end": 4.0,
+             "text": "長い旧翻訳", "wav_path": "06_tts/segment_000001.wav",
+             "status": "generated", **old_ng},
+            {"index": 2, "segment_id": "utt_0002", "start": 4.0, "end": 8.0,
+             "text": "別の長い翻訳", "wav_path": "06_tts/segment_000002.wav",
+             "status": "generated", **old_ng},
+        ]
+    }))
+
+    syntheses = []
+    monkeypatch.setattr(module, "_post_audio_query", lambda **kwargs: {})
+    monkeypatch.setattr(module, "_post_synthesis",
+                        lambda **kwargs: syntheses.append(kwargs) or _wav_bytes(3000))
+    monkeypatch.setattr(module.requests, "Session",
+                        lambda: type("Session", (), {"close": lambda self: None})())
+
+    module.main(["--job-id", "job", "--output-dir", str(tmp_path),
+                 "--base-url", "http://aivis", "--speaker-id", "10",
+                 "--segment-id", "utt_0001", "--resume"])
+
+    manifest = json.loads((tts_dir / "tts_manifest.json").read_text())
+    assert len(syntheses) == 1
+    assert manifest["items"][0]["status"] == "generated"
+    assert manifest["items"][0]["text"] == "短い翻訳"
+    assert manifest["items"][0]["fit_status"] == "ok"
+    retry_rows = [json.loads(line) for line in
+                  (segments_dir / "duration_retry_required.jsonl").read_text().splitlines()]
+    assert [row["segment_id"] for row in retry_rows] == ["utt_0002"]
+
+
+def test_local_pipeline_forwards_repeatable_segment_ids(load_script, monkeypatch):
+    module = load_script("91_run_local_tts_pipeline.py")
+    calls = []
+    monkeypatch.setattr(module, "_run_step",
+                        lambda label, filename, args: calls.append((filename, args)))
+    module.main(["--job-id", "job", "--skip-build-translated",
+                 "--segment-id", "utt_0001", "--segment-id", "utt_0003"])
+    tts_args = calls[0][1]
+    assert tts_args.count("--segment-id") == 2
+    assert "utt_0001" in tts_args and "utt_0003" in tts_args
