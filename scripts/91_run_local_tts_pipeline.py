@@ -14,8 +14,6 @@ DEFAULT_JOB_ID = "phase1_smoke_rick"
 DEFAULT_OUTPUT_DIR = "output"
 DEFAULT_BASE_URL = "http://127.0.0.1:10101"
 DEFAULT_SPEAKER_ID = 1937616896
-DEFAULT_VIDEO_TAIL_CUSHION_RATIO = 0.015
-DEFAULT_VIDEO_TAIL_CUSHION_MAX_SEC = 0.18
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 if str(SCRIPT_DIR) not in sys.path:
@@ -50,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--mux-video",
         action="store_true",
-        help="Run scripts/09_build_synced_video.py after scripts/07_build_dub_audio.py.",
+        help="Run the fixed-timeline scripts/08_mux_video.py Fast Path.",
     )
     parser.add_argument(
         "--ffmpeg-bin",
@@ -61,24 +59,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--ffprobe-bin",
         default="ffprobe",
         help='ffprobe binary name or path for synced video build. Default: "ffprobe"',
-    )
-    parser.add_argument(
-        "--video-tail-cushion-ratio",
-        type=float,
-        default=DEFAULT_VIDEO_TAIL_CUSHION_RATIO,
-        help=(
-            "Extra duration ratio for slowed video segments. "
-            f"Default: {DEFAULT_VIDEO_TAIL_CUSHION_RATIO}"
-        ),
-    )
-    parser.add_argument(
-        "--video-tail-cushion-max-sec",
-        type=float,
-        default=DEFAULT_VIDEO_TAIL_CUSHION_MAX_SEC,
-        help=(
-            "Maximum extra duration for slowed video segments. "
-            f"Default: {DEFAULT_VIDEO_TAIL_CUSHION_MAX_SEC}"
-        ),
     )
     parser.add_argument(
         "--force-tts",
@@ -175,20 +155,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.mux_video:
         _run_step(
-            "Step 4: create synced dubbed video",
-            "09_build_synced_video.py",
+            "Step 4: create fixed-timeline dubbed video",
+            "08_mux_video.py",
             common_job_args
             + [
                 "--ffmpeg-bin",
                 args.ffmpeg_bin,
-                "--ffprobe-bin",
-                args.ffprobe_bin,
-                "--video-tail-cushion-ratio",
-                str(args.video_tail_cushion_ratio),
-                "--video-tail-cushion-max-sec",
-                str(args.video_tail_cushion_max_sec),
-                "--max-audio-speed",
-                "1.25",
             ],
         )
     print("Video build completed.")

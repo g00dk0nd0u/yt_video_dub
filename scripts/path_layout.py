@@ -64,11 +64,27 @@ class JobPaths:
 
     @property
     def transcript_json_path(self) -> Path:
-        return self.transcript_dir / "transcript_original.json"
+        return self.transcript_raw_json_path
 
     @property
     def transcript_srt_path(self) -> Path:
-        return self.transcript_dir / "transcript_original.srt"
+        return self.transcript_raw_srt_path
+
+    @property
+    def transcript_raw_json_path(self) -> Path:
+        return self.transcript_dir / "transcript_raw.json"
+
+    @property
+    def transcript_raw_srt_path(self) -> Path:
+        return self.transcript_dir / "transcript_raw.srt"
+
+    @property
+    def transcript_normalized_json_path(self) -> Path:
+        return self.transcript_dir / "transcript_normalized.json"
+
+    @property
+    def transcript_normalized_srt_path(self) -> Path:
+        return self.transcript_dir / "transcript_normalized.srt"
 
     @property
     def translation_manifest_path(self) -> Path:
@@ -104,7 +120,12 @@ class JobPaths:
 
     @property
     def dubbed_video_synced_path(self) -> Path:
-        return self.job_dir / "dubbed_video_synced.mp4"
+        """Compatibility alias for the old user-facing result property."""
+        return self.dubbed_video_path
+
+    @property
+    def dubbed_video_path(self) -> Path:
+        return self.job_dir / "dubbed_video.mp4"
 
     @property
     def dubbed_video_simple_path(self) -> Path:
@@ -139,10 +160,30 @@ class JobPaths:
         return _prefer_existing(self.job_json_path, self.job_dir / "job.json")
 
     def resolve_transcript_json_path(self) -> Path:
-        return _prefer_existing(self.transcript_json_path, self.job_dir / "transcript_original.json")
+        for candidate in (
+            self.transcript_raw_json_path,
+            self.transcript_dir / "transcript_original.json",
+            self.job_dir / "transcript_original.json",
+        ):
+            if candidate.exists():
+                return candidate
+        return self.transcript_raw_json_path
 
     def resolve_transcript_srt_path(self) -> Path:
-        return _prefer_existing(self.transcript_srt_path, self.job_dir / "transcript_original.srt")
+        for candidate in (
+            self.transcript_raw_srt_path,
+            self.transcript_dir / "transcript_original.srt",
+            self.job_dir / "transcript_original.srt",
+        ):
+            if candidate.exists():
+                return candidate
+        return self.transcript_raw_srt_path
+
+    def resolve_transcript_normalized_json_path(self) -> Path:
+        if self.transcript_normalized_json_path.exists():
+            return self.transcript_normalized_json_path
+        # Old jobs did not distinguish raw and normalized captions.
+        return self.resolve_transcript_json_path()
 
     def resolve_translation_input_dir(self) -> Path:
         return _prefer_existing_dir(self.translation_input_dir, self.job_dir / "translation_input")

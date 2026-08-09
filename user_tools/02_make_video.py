@@ -15,8 +15,6 @@ BASE_URL = "http://127.0.0.1:10101"
 SPEAKER_ID = 1937616896
 FFMPEG_BIN = "ffmpeg"
 FFPROBE_BIN = "ffprobe"
-VIDEO_TAIL_CUSHION_RATIO = 0.015
-VIDEO_TAIL_CUSHION_MAX_SEC = 0.18
 
 
 def _load_pipeline_module():
@@ -105,10 +103,6 @@ def main() -> int:
         FFMPEG_BIN,
         "--ffprobe-bin",
         FFPROBE_BIN,
-        "--video-tail-cushion-ratio",
-        str(VIDEO_TAIL_CUSHION_RATIO),
-        "--video-tail-cushion-max-sec",
-        str(VIDEO_TAIL_CUSHION_MAX_SEC),
     ]
     if make_audio:
         args.append("--force-tts")
@@ -120,7 +114,7 @@ def main() -> int:
     path_layout = _load_path_layout_module()
     paths = path_layout.build_job_paths(OUTPUT_DIR, video_id)
     print("")
-    print(f"完成動画: {paths.dubbed_video_synced_path.as_posix()}")
+    print(f"完成動画: {paths.dubbed_video_path.as_posix()}")
     print(
         f"軽量ファイルは {paths.job_dir.as_posix()}/ 配下の json / txt / srt をそのままGitHubにpushできます。"
     )

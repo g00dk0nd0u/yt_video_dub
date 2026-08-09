@@ -148,8 +148,8 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
 
-    _write_transcript_json(paths.transcript_json_path, transcript, segments)
-    _write_transcript_srt(paths.transcript_srt_path, segments)
+    _write_transcript_json(paths.transcript_raw_json_path, transcript, segments)
+    _write_transcript_srt(paths.transcript_raw_srt_path, segments)
     print(f"Saved transcript for job: {args.job_id}")
     print(f"Language: {transcript.language_code}")
     return 0
