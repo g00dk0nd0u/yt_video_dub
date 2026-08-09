@@ -40,7 +40,7 @@ python user_tools/99_cleanup.py
 1. `user_tools/01_new_youtube.py` を実行して YouTube URL を貼る
 2. Codex に URL を渡した場合は、`scripts/run_prepare.py` 実行と `output/<video_id>/03_translation_input/chunk_*.txt` の翻訳を行い、`output/<video_id>/04_translation_output/chunk_*.txt` まで作る
 3. 動画生成はユーザーの Mac で AivisSpeech を起動してから `user_tools/02_make_video.py` を実行する
-4. `output/<video_id>/dubbed_video_synced.mp4` を開く
+4. `output/<video_id>/dubbed_video.mp4` を開く
 5. 掃除したい時は `user_tools/99_cleanup.py` を実行する
 
 `scripts/` は内部処理用として残しています。主な内部入口は `scripts/run_prepare.py` と `scripts/91_run_local_tts_pipeline.py` です。
@@ -48,7 +48,7 @@ python user_tools/99_cleanup.py
 `user_tools/01_new_youtube.py` は `scripts/run_prepare.py` を呼び、YouTube URL から翻訳用ファイルを作ります。`--job-id` を指定しないため、動画IDがそのまま `output/<video_id>/` に使われます。
 
 `user_tools/02_make_video.py` は `scripts/91_run_local_tts_pipeline.py` を呼び、翻訳済みテキストから音声と映像を合わせた日本語吹替動画を作ります。
-同期版動画では、セグメント末尾の欠けを避けるため、映像をわずかに長めに生成します。
+完成動画は English→Japanese 専用 Fast Path で作成します。映像タイムラインは変更せず、各日本語音声を元字幕の絶対 start 時刻へ配置するため、前の発話が長くても累積 drift は発生しません。超過音声は短い fade-out 付きで clip し、manifest に同期違反を記録します。
 
 Codex URL ワークフローの完了地点は、翻訳済みソースの作成と軽量ファイルの commit/push です。その先の動画生成はローカルで次を実行します。
 
@@ -76,14 +76,16 @@ python3 scripts/91_run_local_tts_pipeline.py \
 
 ```
 output/<video_id>/
-  dubbed_video_synced.mp4
+  dubbed_video.mp4
 
   01_source/
     source.mp4
     job.json
   02_transcript/
-    transcript_original.json
-    transcript_original.srt
+    transcript_raw.json
+    transcript_raw.srt
+    transcript_normalized.json
+    transcript_normalized.srt
   03_translation_input/
     manifest.json
     chunk_0001.txt
@@ -96,14 +98,9 @@ output/<video_id>/
   07_audio/
     dub_audio.wav
     dub_audio_manifest.json
-  08_synced_video/
-    synced_video_manifest.json
-    synced_segments/
-  09_simple_mux/
-    dubbed_video.mp4
 ```
 
-Finder では `output/<video_id>/dubbed_video_synced.mp4` だけが完成動画として直下に見えます。その他の中間成果物は工程順の番号付きフォルダへ入り、`dubbed_video.mp4` を使う場合も `09_simple_mux/` に入ります。
+Finder では `output/<video_id>/dubbed_video.mp4` が完成動画として直下に見えます。元英語音声はデフォルト約 -38 dB で日本語音声と mix し、映像 stream は再エンコードせず copy します。旧 `09_build_synced_video.py` の segment trim・速度変更・concat 方式は通常フローでは使用しません。
 
 ## Git Tracking Policy
 
@@ -126,3 +123,4 @@ Finder では `output/<video_id>/dubbed_video_synced.mp4` だけが完成動画�
 - YouTube 字幕取得は `youtube-transcript-api` を本線にする方針です。
 - Whisper は YouTube 字幕が取得できない場合やローカル動画向け fallback として将来追加予定です。現状は分かりやすいエラーで停止します。
 - AivisSpeech はローカル接続前提です。詳細は [docs/workflow.md](docs/workflow.md) にあります。
+- 字幕正規化は決定的な pure-Python 処理で、LLM は使いません。duration-aware selective retry は Issue #4 で対応予定です。

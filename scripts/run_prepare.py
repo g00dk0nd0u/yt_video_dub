@@ -61,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
 
     prepare_source = _load_script_module("01_prepare_source.py")
     get_transcript = _load_script_module("02_get_transcript.py")
+    normalize_transcript = _load_script_module("02_normalize_transcript.py")
     make_chunks = _load_script_module("03_make_translation_chunks.py")
     job_id = prepare_source.prepare_source(
         youtube_url=args.youtube_url,
@@ -79,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
             args.language,
         ]
     )
+    normalize_transcript.main(["--job-id", job_id, "--output-dir", args.output_dir])
     make_chunks.main(
         [
             "--job-id",

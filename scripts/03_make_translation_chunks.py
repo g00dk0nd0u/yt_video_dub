@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create translation input chunks from the original transcript."""
+"""Create translation input chunks from normalized dubbing utterances."""
 
 from __future__ import annotations
 
@@ -36,7 +36,21 @@ def _load_segments(transcript_path) -> list[dict]:
     if not transcript_path.exists():
         raise FileNotFoundError(f"Missing transcript file: {transcript_path}")
     payload = json.loads(transcript_path.read_text(encoding="utf-8"))
-    segments = payload.get("segments")
+    units = payload.get("units")
+    if isinstance(units, list):
+        segments = [
+            {
+                "segment_id": unit["unit_id"],
+                "start": unit["source_start"],
+                "end": unit["source_end"],
+                "duration": unit["available_duration"],
+                "text": unit["source_text"],
+            }
+            for unit in units
+        ]
+    else:
+        # Compatibility for jobs prepared before normalized transcripts existed.
+        segments = payload.get("segments")
     if not isinstance(segments, list) or not segments:
         raise RuntimeError("transcript_original.json does not contain any segments.")
     return segments
@@ -55,7 +69,8 @@ def main(argv: list[str] | None = None) -> int:
 
     paths = build_job_paths(args.output_dir, args.job_id)
     paths.ensure_prepare_dirs()
-    segments = _load_segments(paths.resolve_transcript_json_path())
+    source_transcript = paths.resolve_transcript_normalized_json_path()
+    segments = _load_segments(source_transcript)
     translation_input_dir = paths.translation_input_dir
     translation_output_dir = paths.translation_output_dir
 
@@ -69,6 +84,7 @@ def main(argv: list[str] | None = None) -> int:
                     "segment_id": segment["segment_id"],
                     "start": segment["start"],
                     "end": segment["end"],
+                    "duration": segment.get("duration", round(segment["end"] - segment["start"], 3)),
                     "text": segment["text"],
                 },
                 ensure_ascii=False,
@@ -87,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest = {
         "job_id": args.job_id,
-        "source_transcript": paths.rel_to_job(paths.transcript_json_path),
+        "source_transcript": paths.rel_to_job(source_transcript),
         "format": "jsonl",
         "chunk_size": args.chunk_size,
         "total_segments": len(segments),

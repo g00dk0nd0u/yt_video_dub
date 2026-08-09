@@ -80,7 +80,10 @@ def _validate_chunk_pair(
         zip(source_items, translated_items),
         start=1,
     ):
-        for field in ("segment_id", "start", "end"):
+        fields = ["segment_id", "start", "end"]
+        if "duration" in source_item:
+            fields.append("duration")
+        for field in fields:
             if translated_item.get(field) != source_item.get(field):
                 raise RuntimeError(
                     f"Chunk validation failed at {translated_path} line {index}: "
@@ -105,6 +108,9 @@ def _validate_chunk_pair(
                 "segment_id": source_item["segment_id"],
                 "start": source_item["start"],
                 "end": source_item["end"],
+                "duration": source_item.get(
+                    "duration", round(source_item["end"] - source_item["start"], 3)
+                ),
                 "text": translated_text,
             }
         )

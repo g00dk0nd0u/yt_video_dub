@@ -144,6 +144,30 @@ def _make_silence(frame_count: int, params: wave._wave_params) -> bytes:
     return b"\x00" * (frame_count * frame_size)
 
 
+def _fade_out(data: bytes, frames: int, params: wave._wave_params) -> bytes:
+    """Apply a short linear fade to clipped PCM without external dependencies."""
+    fade_frames = min(frames, max(1, round(params.framerate * 0.03)))
+    if fade_frames <= 0:
+        return data
+    result = bytearray(data)
+    frame_size = params.nchannels * params.sampwidth
+    first_frame = frames - fade_frames
+    for frame in range(first_frame, frames):
+        gain = (frames - frame - 1) / fade_frames
+        for channel in range(params.nchannels):
+            offset = frame * frame_size + channel * params.sampwidth
+            raw = result[offset : offset + params.sampwidth]
+            if params.sampwidth == 1:
+                value = raw[0] - 128
+                result[offset] = max(0, min(255, round(value * gain) + 128))
+            else:
+                value = int.from_bytes(raw, "little", signed=True)
+                result[offset : offset + params.sampwidth] = round(value * gain).to_bytes(
+                    params.sampwidth, "little", signed=True
+                )
+    return bytes(result)
+
+
 def _build_warning(
     item: dict[str, Any],
     target_start_frames: int,
@@ -205,12 +229,6 @@ def main(argv: list[str] | None = None) -> int:
                     "Cannot render skipped_empty segments before any WAV establishes output parameters."
                 )
 
-            current_frame_count = len(output_frames) // (wav_params.nchannels * wav_params.sampwidth)
-            target_end_frames = _seconds_to_frames(item["end"], wav_params.framerate)
-            added_silence_frames = max(0, target_end_frames - current_frame_count)
-            if added_silence_frames:
-                output_frames.extend(_make_silence(added_silence_frames, wav_params))
-
             processed_items.append(
                 {
                     "index": item.get("index"),
@@ -218,15 +236,12 @@ def main(argv: list[str] | None = None) -> int:
                     "status": status,
                     "target_start": item["start"],
                     "target_end": item["end"],
-                    "actual_start": _frames_to_seconds(current_frame_count, wav_params.framerate),
-                    "actual_end": _frames_to_seconds(
-                        current_frame_count + added_silence_frames,
-                        wav_params.framerate,
-                    ),
-                    "silence_inserted": _frames_to_seconds(
-                        added_silence_frames,
-                        wav_params.framerate,
-                    ),
+                    "actual_start": item["start"],
+                    "actual_end": item["start"],
+                    "actual_tts_duration": 0.0,
+                    "end_delta": round(item["start"] - item["end"], 6),
+                    "timing_status": "skipped_empty",
+                    "clipped": False,
                     "warning": None,
                 }
             )
@@ -244,7 +259,6 @@ def main(argv: list[str] | None = None) -> int:
             wav_bytes = wav_reader.readframes(wav_frames)
 
         assert wav_params is not None
-        current_frame_count = len(output_frames) // (wav_params.nchannels * wav_params.sampwidth)
         target_start_frames = _seconds_to_frames(item["start"], wav_params.framerate)
         original_end_frames = _seconds_to_frames(item["end"], wav_params.framerate)
         next_start_frames = (
@@ -253,24 +267,35 @@ def main(argv: list[str] | None = None) -> int:
             else None
         )
 
-        silence_frames = max(0, target_start_frames - current_frame_count)
-        if silence_frames:
-            output_frames.extend(_make_silence(silence_frames, wav_params))
-            current_frame_count += silence_frames
-
-        actual_start_frames = current_frame_count
-        output_frames.extend(wav_bytes)
-        warning = _build_warning(
-            item=item,
-            target_start_frames=target_start_frames,
-            actual_start_frames=actual_start_frames,
-            original_end_frames=original_end_frames,
-            wav_frames=wav_frames,
-            next_start_frames=next_start_frames,
-            framerate=wav_params.framerate,
-        )
-        if warning is not None:
+        actual_start_frames = target_start_frames
+        hard_end_frames = original_end_frames
+        if next_start_frames is not None:
+            hard_end_frames = min(hard_end_frames, next_start_frames)
+        allowed_frames = max(0, hard_end_frames - target_start_frames)
+        written_frames = min(wav_frames, allowed_frames)
+        clipped = written_frames < wav_frames
+        if clipped:
+            wav_bytes = _fade_out(
+                wav_bytes[: written_frames * wav_params.nchannels * wav_params.sampwidth],
+                written_frames,
+                wav_params,
+            )
             warnings_count += 1
+        required_frames = target_start_frames + written_frames
+        current_frames = len(output_frames) // (wav_params.nchannels * wav_params.sampwidth)
+        if required_frames > current_frames:
+            output_frames.extend(_make_silence(required_frames - current_frames, wav_params))
+        byte_start = target_start_frames * wav_params.nchannels * wav_params.sampwidth
+        output_frames[byte_start : byte_start + len(wav_bytes)] = wav_bytes
+        overflow_frames = max(0, wav_frames - allowed_frames)
+        timing_status = "overflow_clipped" if clipped else "ok"
+        warning = None
+        if clipped:
+            warning = {
+                "timing_status": timing_status,
+                "overflow_seconds": _frames_to_seconds(overflow_frames, wav_params.framerate),
+                "clipped": True,
+            }
 
         processed_items.append(
             {
@@ -282,11 +307,18 @@ def main(argv: list[str] | None = None) -> int:
                 "target_end": item["end"],
                 "actual_start": _frames_to_seconds(actual_start_frames, wav_params.framerate),
                 "actual_end": _frames_to_seconds(
-                    actual_start_frames + wav_frames,
+                    actual_start_frames + written_frames,
                     wav_params.framerate,
                 ),
                 "wav_duration": _frames_to_seconds(wav_frames, wav_params.framerate),
-                "silence_inserted": _frames_to_seconds(silence_frames, wav_params.framerate),
+                "actual_tts_duration": _frames_to_seconds(written_frames, wav_params.framerate),
+                "end_delta": _frames_to_seconds(
+                    actual_start_frames + wav_frames - original_end_frames,
+                    wav_params.framerate,
+                ),
+                "timing_status": timing_status,
+                "overflow_seconds": _frames_to_seconds(overflow_frames, wav_params.framerate),
+                "clipped": clipped,
                 "warning": warning,
             }
         )
