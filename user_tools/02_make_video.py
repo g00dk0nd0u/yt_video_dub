@@ -105,7 +105,7 @@ def main() -> int:
         FFPROBE_BIN,
     ]
     if make_audio:
-        args.append("--force-tts")
+        args.append("--resume")
     if make_mp4:
         args.append("--mux-video")
 
