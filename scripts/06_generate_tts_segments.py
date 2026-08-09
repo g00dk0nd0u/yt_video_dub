@@ -20,6 +20,16 @@ from path_layout import build_job_paths
 DEFAULT_TIMEOUT = 30.0
 MAX_SPEED_SCALE = 1.15
 TARGET_CHARS_SAFETY_MARGIN = 0.9
+FIT_METADATA_FIELDS = (
+    "available_duration",
+    "raw_tts_duration",
+    "final_tts_duration",
+    "duration_ratio",
+    "speed_scale",
+    "fit_status",
+    "retry_count",
+    "translation_retry_required",
+)
 
 
 class TTSError(RuntimeError):
@@ -351,7 +361,7 @@ def _write_manifest(
     )
 
 
-def _load_existing_manifest_items(manifest_path: Path) -> list[dict[str, Any]] | None:
+def _load_existing_manifest(manifest_path: Path) -> dict[str, Any] | None:
     if not manifest_path.exists():
         return None
 
@@ -367,12 +377,46 @@ def _load_existing_manifest_items(manifest_path: Path) -> list[dict[str, Any]] |
     if not isinstance(items, list):
         raise TTSError(f"tts_manifest.json is missing an items list: {manifest_path}")
 
-    validated_items: list[dict[str, Any]] = []
     for item in items:
         if not isinstance(item, dict):
             raise TTSError(f"Invalid item found in existing manifest: {manifest_path}")
-        validated_items.append(item)
-    return validated_items
+    return payload
+
+
+def _is_reusable_tts(
+    existing_item: dict[str, Any] | None,
+    current_segment: dict[str, Any],
+    existing_manifest_settings: dict[str, Any],
+    current_settings: dict[str, Any],
+) -> bool:
+    """Return whether a cached WAV represents the current text, timing, and voice."""
+    if existing_item is None:
+        return False
+    for field in ("segment_id", "text", "start", "end"):
+        if existing_item.get(field) != current_segment.get(field):
+            return False
+    if existing_manifest_settings.get("speaker_id") != current_settings.get("speaker_id"):
+        return False
+    existing_base_url = existing_manifest_settings.get("base_url")
+    current_base_url = current_settings.get("base_url")
+    if not isinstance(existing_base_url, str) or not isinstance(current_base_url, str):
+        return False
+    return _normalize_base_url(existing_base_url) == _normalize_base_url(current_base_url)
+
+
+def _reused_fit_metadata(
+    existing_item: dict[str, Any], available_duration: float, measured_duration: float
+) -> dict[str, Any]:
+    if all(field in existing_item for field in FIT_METADATA_FIELDS):
+        return {field: existing_item[field] for field in FIT_METADATA_FIELDS}
+    return _fit_fields(
+        available_duration,
+        measured_duration,
+        measured_duration,
+        1.0,
+        "ok" if measured_duration <= available_duration else "ng",
+        0,
+    )
 
 
 def _select_process_segments(
@@ -449,7 +493,14 @@ def main(argv: list[str] | None = None) -> int:
     tts_dir.mkdir(parents=True, exist_ok=True)
     session = requests.Session()
     manifest_items: list[dict[str, Any]] = []
-    existing_manifest_items = _load_existing_manifest_items(manifest_path)
+    existing_manifest = _load_existing_manifest(manifest_path)
+    existing_manifest_items = existing_manifest["items"] if existing_manifest else None
+    existing_items_by_index = {
+        item["index"]: item
+        for item in (existing_manifest_items or [])
+        if isinstance(item.get("index"), int)
+    }
+    current_settings = {"base_url": base_url, "speaker_id": args.speaker_id}
     if has_range and existing_manifest_items is None:
         print(
             "Warning: partial run requested without an existing tts_manifest.json. "
@@ -476,24 +527,34 @@ def main(argv: list[str] | None = None) -> int:
                 continue
 
             if args.resume and not args.force:
+                existing_item = existing_items_by_index.get(item_index)
                 for reuse_candidate in reuse_candidates:
-                    if reuse_candidate.exists():
-                        status = "reused"
-                        wav_relative_path = paths.rel_to_job(reuse_candidate)
-                        reused_duration = _measure_wav_duration(reuse_candidate)
-                        manifest_items.append(
-                            _build_manifest_item(
-                                item_index, segment, wav_relative_path, status,
-                                **_fit_fields(available_duration,
-                                              reused_duration, reused_duration, 1.0,
-                                              "ok" if reused_duration <= available_duration else "ng", 0),
-                            )
+                    if not reuse_candidate.exists() or not _is_reusable_tts(
+                        existing_item,
+                        segment,
+                        existing_manifest or {},
+                        current_settings,
+                    ):
+                        continue
+                    assert existing_item is not None
+                    wav_relative_path = paths.rel_to_job(reuse_candidate)
+                    if existing_item.get("wav_path") != wav_relative_path:
+                        continue
+                    status = "reused"
+                    reused_duration = _measure_wav_duration(reuse_candidate)
+                    manifest_items.append(
+                        _build_manifest_item(
+                            item_index, segment, wav_relative_path, status,
+                            **_reused_fit_metadata(
+                                existing_item, available_duration, reused_duration
+                            ),
                         )
-                        print(
-                            f"[{item_index}/{total_segments}] "
-                            f"segment_id={segment['segment_id']} status={status}"
-                        )
-                        break
+                    )
+                    print(
+                        f"[{item_index}/{total_segments}] "
+                        f"segment_id={segment['segment_id']} status={status}"
+                    )
+                    break
                 else:
                     reuse_candidate = None
                 if reuse_candidate is not None:
