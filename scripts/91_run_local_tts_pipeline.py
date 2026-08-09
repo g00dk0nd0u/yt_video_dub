@@ -81,6 +81,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="1-based translated segment index to end audio generation at.",
     )
     parser.add_argument(
+        "--segment-id",
+        action="append",
+        dest="segment_ids",
+        help="Regenerate only this segment ID. Repeatable and passed to script 06.",
+    )
+    parser.add_argument(
         "--skip-build-translated",
         action="store_true",
         help="Skip scripts/04_build_translated_segments.py.",
@@ -142,6 +148,8 @@ def main(argv: list[str] | None = None) -> int:
         tts_args.extend(["--start-index", str(args.start_index)])
     if args.end_index is not None:
         tts_args.extend(["--end-index", str(args.end_index)])
+    for segment_id in args.segment_ids or []:
+        tts_args.extend(["--segment-id", segment_id])
 
     _run_step(
         "Step 2: generate Japanese audio segments",
