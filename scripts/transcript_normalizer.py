@@ -8,6 +8,7 @@ from typing import Any
 
 TOKEN_RE = re.compile(r"\S+")
 SENTENCE_END_RE = re.compile(r"[.!?][\]\)\"']*$")
+NON_SPEECH_CUES = {"[music]", "[applause]", "[laughter]"}
 
 
 def _key(token: str) -> str:
@@ -40,26 +41,51 @@ def normalize_segments(
     """Return ordered, non-overlapping utterances with raw-caption mappings."""
     stream: list[dict[str, Any]] = []
     previous: dict[str, Any] | None = None
-    for segment in sorted(segments, key=lambda item: (float(item["start"]), item["segment_id"])):
-        words = TOKEN_RE.findall(str(segment.get("text", "")))
-        words = _deduplicate(stream, words)
+    ordered_segments = sorted(
+        segments, key=lambda item: (float(item["start"]), item["segment_id"])
+    )
+    for segment_index, segment in enumerate(ordered_segments):
+        raw_words = TOKEN_RE.findall(str(segment.get("text", "")))
+        words = _deduplicate(stream, raw_words)
         if not words:
             previous = segment
             continue
+        removed_prefix = len(raw_words) - len(words)
+        window_start = float(segment["start"])
+        fallback_end = float(segment["end"])
+        next_start = (
+            float(ordered_segments[segment_index + 1]["start"])
+            if segment_index + 1 < len(ordered_segments)
+            else None
+        )
+        window_end = (
+            next_start
+            if next_start is not None and next_start > window_start
+            else fallback_end
+        )
+        if window_end <= window_start:
+            window_end = max(fallback_end, window_start + 0.001)
+        token_count = max(1, len(raw_words))
+        token_step = (window_end - window_start) / token_count
         pause_before = bool(
             previous is not None
             and float(segment["start"]) - float(previous["end"]) >= pause_seconds
         )
+        first_spoken_word = True
         for word_index, word in enumerate(words):
+            raw_word_index = removed_prefix + word_index
+            if word.casefold() in NON_SPEECH_CUES:
+                continue
             stream.append(
                 {
                     "token": word,
                     "segment_id": segment["segment_id"],
-                    "start": float(segment["start"]),
-                    "end": float(segment["end"]),
-                    "pause_before": pause_before and word_index == 0,
+                    "start": window_start + raw_word_index * token_step,
+                    "end": window_start + (raw_word_index + 1) * token_step,
+                    "pause_before": pause_before and first_spoken_word,
                 }
             )
+            first_spoken_word = False
         previous = segment
 
     groups: list[list[dict[str, Any]]] = []
@@ -83,14 +109,14 @@ def normalize_segments(
             {
                 "unit_id": f"utt_{index:04}",
                 "source_start": round(group[0]["start"], 3),
-                "source_end": round(max(token["end"] for token in group), 3),
+                "source_end": round(group[-1]["end"], 3),
                 "source_text": " ".join(token["token"] for token in group),
                 "source_segment_ids": source_ids,
             }
         )
 
-    # Multiple sentences inside one caption have no independent timing anchor.
-    # Keep their text together rather than inventing timestamps or losing text.
+    # Degenerate input windows can still share a start; keep all text without
+    # inventing a second anchor in that exceptional case.
     consolidated: list[dict[str, Any]] = []
     for unit in units:
         if consolidated and unit["source_start"] == consolidated[-1]["source_start"]:
@@ -104,7 +130,8 @@ def normalize_segments(
             consolidated.append(unit)
     units = consolidated
 
-    # Hard-clamp each utterance at the following absolute anchor; never shift anchors.
+    # Token estimates normally make units disjoint. Clamp only as a final guard
+    # against malformed caption windows; never shift a later absolute anchor.
     normalized: list[dict[str, Any]] = []
     for index, unit in enumerate(units):
         end = unit["source_end"]
