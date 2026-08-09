@@ -236,6 +236,8 @@ def main(argv: list[str] | None = None) -> int:
                     "status": status,
                     "target_start": item["start"],
                     "target_end": item["end"],
+                    "source_start": item["start"],
+                    "source_end": item["end"],
                     "actual_start": item["start"],
                     "actual_end": item["start"],
                     "actual_tts_duration": 0.0,
@@ -243,6 +245,15 @@ def main(argv: list[str] | None = None) -> int:
                     "timing_status": "skipped_empty",
                     "clipped": False,
                     "warning": None,
+                    **{
+                        key: item.get(key)
+                        for key in (
+                            "available_duration", "raw_tts_duration", "final_tts_duration",
+                            "duration_ratio", "speed_scale", "fit_status", "retry_count",
+                            "translation_retry_required",
+                        )
+                        if key in item
+                    },
                 }
             )
             continue
@@ -305,6 +316,8 @@ def main(argv: list[str] | None = None) -> int:
                 "wav_path": wav_relative_path,
                 "target_start": item["start"],
                 "target_end": item["end"],
+                "source_start": item["start"],
+                "source_end": item["end"],
                 "actual_start": _frames_to_seconds(actual_start_frames, wav_params.framerate),
                 "actual_end": _frames_to_seconds(
                     actual_start_frames + written_frames,
@@ -320,6 +333,16 @@ def main(argv: list[str] | None = None) -> int:
                 "overflow_seconds": _frames_to_seconds(overflow_frames, wav_params.framerate),
                 "clipped": clipped,
                 "warning": warning,
+                # Preserve duration-fit diagnostics so a fallback clip is traceable.
+                **{
+                    key: item.get(key)
+                    for key in (
+                        "available_duration", "raw_tts_duration", "final_tts_duration",
+                        "duration_ratio", "speed_scale", "fit_status", "retry_count",
+                        "translation_retry_required",
+                    )
+                    if key in item
+                },
             }
         )
 
