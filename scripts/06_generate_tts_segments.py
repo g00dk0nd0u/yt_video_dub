@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
+import math
+import wave
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -15,6 +18,8 @@ from path_layout import build_job_paths
 
 
 DEFAULT_TIMEOUT = 30.0
+MAX_SPEED_SCALE = 1.15
+TARGET_CHARS_SAFETY_MARGIN = 0.9
 
 
 class TTSError(RuntimeError):
@@ -55,6 +60,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--end-index",
         type=int,
         help="1-based translated segment index to end at.",
+    )
+    parser.add_argument(
+        "--segment-id",
+        action="append",
+        dest="segment_ids",
+        help=("Process only this segment ID. Repeatable; when combined with a range, "
+              "only IDs inside that range are selected."),
+    )
+    parser.add_argument(
+        "--max-speed-scale",
+        type=float,
+        default=MAX_SPEED_SCALE,
+        help=f"Maximum AivisSpeech speedScale used for one fitting retry. Default: {MAX_SPEED_SCALE}",
     )
     parser.add_argument(
         "--limit",
@@ -231,8 +249,9 @@ def _build_manifest_item(
     segment: dict[str, Any],
     wav_path: str | None,
     status: str,
+    **fit: Any,
 ) -> dict[str, Any]:
-    return {
+    item = {
         "index": item_index,
         "segment_id": segment["segment_id"],
         "start": segment["start"],
@@ -241,6 +260,73 @@ def _build_manifest_item(
         "wav_path": wav_path,
         "status": status,
     }
+    item.update(fit)
+    return item
+
+
+def _measure_wav_duration(wav_data: bytes | Path) -> float:
+    source = io.BytesIO(wav_data) if isinstance(wav_data, bytes) else str(wav_data)
+    try:
+        with wave.open(source, "rb") as reader:
+            framerate = reader.getframerate()
+            if framerate <= 0:
+                raise TTSError("Synthesized WAV has an invalid sample rate.")
+            return reader.getnframes() / float(framerate)
+    except (wave.Error, EOFError) as exc:
+        raise TTSError("AivisSpeech returned an invalid WAV file.") from exc
+
+
+def _classify_duration(raw_duration: float, available_duration: float,
+                       max_speed_scale: float = MAX_SPEED_SCALE) -> tuple[str, float, bool]:
+    if available_duration <= 0:
+        return "ng", math.inf, False
+    required_speed = raw_duration / available_duration
+    if required_speed <= 1.0:
+        return "ok", required_speed, False
+    if required_speed <= max_speed_scale:
+        return "retry", required_speed, True
+    return "ng", required_speed, False
+
+
+def _target_chars(text: str, available_duration: float, raw_tts_duration: float,
+                  safety_margin: float = TARGET_CHARS_SAFETY_MARGIN) -> int:
+    if not text or raw_tts_duration <= 0 or available_duration <= 0:
+        return 0
+    estimate = len(text) * available_duration / raw_tts_duration * safety_margin
+    return max(1, min(len(text) - 1, math.floor(estimate)))
+
+
+def _fit_fields(available: float, raw: float, final: float, speed: float,
+                fit_status: str, retry_count: int) -> dict[str, Any]:
+    return {
+        "available_duration": round(available, 6),
+        "raw_tts_duration": round(raw, 6),
+        "final_tts_duration": round(final, 6),
+        "duration_ratio": round(final / available, 6) if available > 0 else None,
+        "speed_scale": round(speed, 6),
+        "fit_status": fit_status,
+        "retry_count": retry_count,
+        "translation_retry_required": fit_status == "ng",
+    }
+
+
+def _write_retry_artifact(path: Path, items: list[dict[str, Any]]) -> None:
+    rows = []
+    for item in items:
+        if not item.get("translation_retry_required"):
+            continue
+        available = float(item["available_duration"])
+        raw = float(item["raw_tts_duration"])
+        text = str(item.get("text", ""))
+        rows.append({
+            "segment_id": item["segment_id"], "start": item["start"], "end": item["end"],
+            "duration": available, "current_text": text, "raw_tts_duration": raw,
+            "required_speed": round(raw / available, 6) if available > 0 else None,
+            "target_chars": _target_chars(text, available, raw),
+        })
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
+    path.write_text(content, encoding="utf-8")
 
 
 def _write_manifest(
@@ -294,6 +380,7 @@ def _select_process_segments(
     start_index: int | None,
     end_index: int | None,
     limit: int | None,
+    segment_ids: list[str] | None = None,
 ) -> tuple[list[tuple[int, dict[str, Any]]], bool]:
     indexed_segments = list(enumerate(segments, start=1))
     has_range = start_index is not None or end_index is not None
@@ -306,10 +393,14 @@ def _select_process_segments(
             if start <= item_index <= end
         ]
 
+    if segment_ids:
+        selected_ids = set(segment_ids)
+        indexed_segments = [item for item in indexed_segments if item[1]["segment_id"] in selected_ids]
+
     if limit is not None:
         indexed_segments = indexed_segments[:limit]
 
-    return indexed_segments, has_range
+    return indexed_segments, has_range or bool(segment_ids)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -328,6 +419,8 @@ def main(argv: list[str] | None = None) -> int:
         and args.start_index > args.end_index
     ):
         raise TTSError("--start-index must be less than or equal to --end-index.")
+    if args.max_speed_scale < 1.0:
+        raise TTSError("--max-speed-scale must be at least 1.0.")
 
     paths = build_job_paths(args.output_dir, args.job_id)
     legacy_tts_dir = paths.job_dir / "tts"
@@ -343,7 +436,13 @@ def main(argv: list[str] | None = None) -> int:
         start_index=args.start_index,
         end_index=args.end_index,
         limit=args.limit,
+        segment_ids=args.segment_ids,
     )
+    if args.segment_ids:
+        known_ids = {segment["segment_id"] for segment in segments}
+        unknown_ids = sorted(set(args.segment_ids) - known_ids)
+        if unknown_ids:
+            raise TTSError("Unknown --segment-id value(s): " + ", ".join(unknown_ids))
     if not process_segments:
         raise TTSError("No segments matched the requested range.")
 
@@ -365,11 +464,13 @@ def main(argv: list[str] | None = None) -> int:
             if legacy_tts_dir != tts_dir:
                 reuse_candidates.append(legacy_tts_dir / wav_filename)
             text = segment["text"]
+            available_duration = max(0.0, segment["end"] - segment["start"])
 
             if text == "":
                 status = "skipped_empty"
                 manifest_items.append(
-                    _build_manifest_item(item_index, segment, None, status)
+                    _build_manifest_item(item_index, segment, None, status,
+                                         **_fit_fields(available_duration, 0, 0, 1.0, "ok", 0))
                 )
                 print(f"[{item_index}/{total_segments}] segment_id={segment['segment_id']} status={status}")
                 continue
@@ -379,8 +480,14 @@ def main(argv: list[str] | None = None) -> int:
                     if reuse_candidate.exists():
                         status = "reused"
                         wav_relative_path = paths.rel_to_job(reuse_candidate)
+                        reused_duration = _measure_wav_duration(reuse_candidate)
                         manifest_items.append(
-                            _build_manifest_item(item_index, segment, wav_relative_path, status)
+                            _build_manifest_item(
+                                item_index, segment, wav_relative_path, status,
+                                **_fit_fields(available_duration,
+                                              reused_duration, reused_duration, 1.0,
+                                              "ok" if reused_duration <= available_duration else "ng", 0),
+                            )
                         )
                         print(
                             f"[{item_index}/{total_segments}] "
@@ -399,6 +506,8 @@ def main(argv: list[str] | None = None) -> int:
                 text=text,
                 timeout=args.timeout,
             )
+            # Always establish the baseline at normal speed before considering a retry.
+            audio_query_payload["speedScale"] = 1.0
             wav_bytes = _post_synthesis(
                 session=session,
                 base_url=base_url,
@@ -406,12 +515,34 @@ def main(argv: list[str] | None = None) -> int:
                 audio_query_payload=audio_query_payload,
                 timeout=args.timeout,
             )
+            raw_tts_duration = _measure_wav_duration(wav_bytes)
+            classification, required_speed, should_retry = _classify_duration(
+                raw_tts_duration, available_duration, args.max_speed_scale
+            )
+            speed_scale = 1.0
+            retry_count = 0
+            final_tts_duration = raw_tts_duration
+            fit_status = classification
+            if should_retry:
+                speed_scale = required_speed
+                audio_query_payload["speedScale"] = speed_scale
+                wav_bytes = _post_synthesis(
+                    session=session, base_url=base_url, speaker_id=args.speaker_id,
+                    audio_query_payload=audio_query_payload, timeout=args.timeout,
+                )
+                retry_count = 1
+                final_tts_duration = _measure_wav_duration(wav_bytes)
+                fit_status = "fitted" if final_tts_duration <= available_duration else "ng"
             wav_output_path.write_bytes(wav_bytes)
 
             status = "generated"
             wav_relative_path = paths.rel_to_job(wav_output_path)
             manifest_items.append(
-                _build_manifest_item(item_index, segment, wav_relative_path, status)
+                _build_manifest_item(
+                    item_index, segment, wav_relative_path, status,
+                    **_fit_fields(available_duration, raw_tts_duration, final_tts_duration,
+                                  speed_scale, fit_status, retry_count),
+                )
             )
             print(f"[{item_index}/{total_segments}] segment_id={segment['segment_id']} status={status}")
     except requests.RequestException as exc:
@@ -441,8 +572,10 @@ def main(argv: list[str] | None = None) -> int:
         total_segments=total_segments,
         items=manifest_items,
     )
+    _write_retry_artifact(paths.duration_retry_required_path, manifest_items)
 
     print(f"Wrote manifest: {manifest_path}")
+    print(f"Wrote duration retry artifact: {paths.duration_retry_required_path}")
     return 0
 
 

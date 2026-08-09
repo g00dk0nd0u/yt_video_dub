@@ -103,6 +103,10 @@ class JobPaths:
         return self.tts_dir / "tts_manifest.json"
 
     @property
+    def duration_retry_required_path(self) -> Path:
+        return self.segments_dir / "duration_retry_required.jsonl"
+
+    @property
     def dub_audio_wav_path(self) -> Path:
         return self.audio_dir / "dub_audio.wav"
 

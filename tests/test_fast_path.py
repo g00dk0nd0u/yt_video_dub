@@ -2,6 +2,8 @@ import json
 import struct
 import wave
 
+import pytest
+
 
 def _wav(path, frames, rate=1000):
     with wave.open(str(path), "wb") as writer:
@@ -48,3 +50,53 @@ def test_legacy_transcript_path_fallback(tmp_path):
     legacy.parent.mkdir(parents=True)
     legacy.write_text("{}")
     assert build_job_paths(tmp_path, "job").resolve_transcript_json_path() == legacy
+
+
+def test_duration_fit_classification(load_script):
+    module = load_script("06_generate_tts_segments.py")
+    status, speed, retry = module._classify_duration(3.92, 4.2)
+    assert (status, retry) == ("ok", False)
+    assert speed == pytest.approx(3.92 / 4.2)
+    status, speed, retry = module._classify_duration(4.32, 4.0)
+    assert (status, retry) == ("retry", True)
+    assert speed == pytest.approx(1.08)
+    status, speed, retry = module._classify_duration(5.4, 4.0)
+    assert (status, retry) == ("ng", False)
+    assert speed == pytest.approx(1.35)
+
+
+def test_speed_retry_result_must_be_measured(load_script):
+    module = load_script("06_generate_tts_segments.py")
+    fields = module._fit_fields(4.0, 4.32, 4.05, 1.08, "ng", 1)
+    assert fields["fit_status"] == "ng"
+    assert fields["translation_retry_required"] is True
+    assert fields["retry_count"] == 1
+
+
+def test_retry_artifact_contains_only_ng_and_shorter_target(tmp_path, load_script):
+    module = load_script("06_generate_tts_segments.py")
+    path = tmp_path / "duration_retry_required.jsonl"
+    common = {"start": 1.0, "end": 5.0, "available_duration": 4.0,
+              "raw_tts_duration": 5.4, "text": "これは長すぎる翻訳です"}
+    module._write_retry_artifact(path, [
+        {**common, "segment_id": "bad", "translation_retry_required": True},
+        {**common, "segment_id": "good", "translation_retry_required": False},
+    ])
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert [row["segment_id"] for row in rows] == ["bad"]
+    assert rows[0]["target_chars"] < len(common["text"])
+
+
+def test_segment_id_selector_intersects_range_without_changing_timestamps(load_script):
+    module = load_script("06_generate_tts_segments.py")
+    segments = [
+        {"segment_id": "utt_0001", "start": 0.0, "end": 1.0},
+        {"segment_id": "utt_0002", "start": 2.0, "end": 3.0},
+        {"segment_id": "utt_0003", "start": 4.0, "end": 5.0},
+    ]
+    selected, partial = module._select_process_segments(
+        segments, 2, 3, None, ["utt_0001", "utt_0003"]
+    )
+    assert partial is True
+    assert selected == [(3, segments[2])]
+    assert segments[2]["start"] == 4.0
