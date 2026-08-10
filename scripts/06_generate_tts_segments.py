@@ -451,10 +451,11 @@ def _select_process_segments(
 
 
 def _fit_counts(items: list[dict[str, Any]]) -> dict[str, int]:
+    fitted_items = [item for item in items if item.get("status") != "skipped_empty"]
     return {
-        "fit_ok_count": sum(item.get("fit_status") == "ok" for item in items),
-        "fit_fitted_count": sum(item.get("fit_status") == "fitted" for item in items),
-        "fit_ng_count": sum(item.get("fit_status") == "ng" for item in items),
+        "fit_ok_count": sum(item.get("fit_status") == "ok" for item in fitted_items),
+        "fit_fitted_count": sum(item.get("fit_status") == "fitted" for item in fitted_items),
+        "fit_ng_count": sum(item.get("fit_status") == "ng" for item in fitted_items),
     }
 
 

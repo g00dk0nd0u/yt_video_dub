@@ -226,10 +226,14 @@ def test_tts_run_metrics_count_normal_and_speed_fit_synthesis(
         "segments": [
             {"segment_id": "ok", "start": 0.0, "end": 1.0, "text": "通常"},
             {"segment_id": "fit", "start": 1.0, "end": 2.0, "text": "調整"},
-            {"segment_id": "empty", "start": 2.0, "end": 3.0, "text": ""},
+            {"segment_id": "ng", "start": 2.0, "end": 3.0, "text": "長い"},
+            {"segment_id": "empty1", "start": 3.0, "end": 4.0, "text": ""},
+            {"segment_id": "empty2", "start": 4.0, "end": 5.0, "text": ""},
         ]
     }))
-    wav_results = iter([_wav_bytes(900), _wav_bytes(1080), _wav_bytes(950)])
+    wav_results = iter([
+        _wav_bytes(900), _wav_bytes(1080), _wav_bytes(950), _wav_bytes(1300)
+    ])
     monkeypatch.setattr(module, "_post_audio_query", lambda **kwargs: {})
     monkeypatch.setattr(module, "_post_synthesis", lambda **kwargs: next(wav_results))
     monkeypatch.setattr(module.requests, "Session",
@@ -239,12 +243,15 @@ def test_tts_run_metrics_count_normal_and_speed_fit_synthesis(
                  "--base-url", "http://aivis", "--speaker-id", "10"])
 
     metrics = json.loads((job / "06_tts/tts_manifest.json").read_text())["run_metrics"]
-    assert metrics["selected_units"] == 3
-    assert metrics["generated_units"] == 2
-    assert metrics["skipped_empty_units"] == 1
-    assert metrics["normal_synthesis_count"] == 2
+    assert metrics["selected_units"] == 5
+    assert metrics["generated_units"] == 3
+    assert metrics["skipped_empty_units"] == 2
+    assert metrics["normal_synthesis_count"] == 3
     assert metrics["speed_fit_synthesis_count"] == 1
-    assert (metrics["fit_ok_count"], metrics["fit_fitted_count"], metrics["fit_ng_count"]) == (2, 1, 0)
+    assert (metrics["fit_ok_count"], metrics["fit_fitted_count"], metrics["fit_ng_count"]) == (1, 1, 1)
+    assert metrics["manifest_counts"] == {
+        "fit_ok_count": 1, "fit_fitted_count": 1, "fit_ng_count": 1,
+    }
 
 
 def test_local_pipeline_forwards_repeatable_segment_ids(load_script, monkeypatch, tmp_path):

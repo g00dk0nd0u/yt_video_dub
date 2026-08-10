@@ -76,6 +76,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Pass --resume to scripts/06_generate_tts_segments.py.",
     )
     parser.add_argument(
+        "--skip-tts",
+        action="store_true",
+        help="Skip scripts/06_generate_tts_segments.py and use existing TTS artifacts in later stages.",
+    )
+    parser.add_argument(
         "--start-index",
         type=int,
         help="1-based translated segment index to start audio generation from.",
@@ -145,6 +150,9 @@ def _load_tts_run_metrics(path: Path) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.skip_tts and any((args.resume, args.force_tts, args.start_index is not None,
+                              args.end_index is not None, args.segment_ids)):
+        parser.error("--skip-tts cannot be combined with TTS generation options.")
     pipeline_started = time.perf_counter()
     timer = StageTimer()
     paths = build_job_paths(args.output_dir, args.job_id)
@@ -186,11 +194,14 @@ def main(argv: list[str] | None = None) -> int:
     for segment_id in args.segment_ids or []:
         tts_args.extend(["--segment-id", segment_id])
 
-    timer.run(
-        "tts",
-        lambda: _run_step("Step 2: generate Japanese audio segments",
-                          "06_generate_tts_segments.py", tts_args),
-    )
+    if args.skip_tts:
+        timer.skip("tts")
+    else:
+        timer.run(
+            "tts",
+            lambda: _run_step("Step 2: generate Japanese audio segments",
+                              "06_generate_tts_segments.py", tts_args),
+        )
     timer.run(
         "dub_audio_build",
         lambda: _run_step("Step 3: combine Japanese audio",
@@ -209,12 +220,24 @@ def main(argv: list[str] | None = None) -> int:
 
     video_duration = _probe_video_duration(paths.resolve_source_video_path(), args.ffprobe_bin)
     run_mode = "selective_retry" if args.segment_ids else ("resume" if args.resume else "full")
+    tts_metrics = ({
+        "status": "skipped",
+        "selected_units": 0,
+        "generated_units": 0,
+        "reused_units": 0,
+        "skipped_empty_units": 0,
+        "normal_synthesis_count": 0,
+        "speed_fit_synthesis_count": 0,
+        "fit_ok_count": 0,
+        "fit_fitted_count": 0,
+        "fit_ng_count": 0,
+    } if args.skip_tts else _load_tts_run_metrics(paths.tts_manifest_path))
     benchmark = build_benchmark(
         job_id=args.job_id,
         run_mode=run_mode,
         total_pipeline_seconds=time.perf_counter() - pipeline_started,
         stages=timer.stages,
-        tts=_load_tts_run_metrics(paths.tts_manifest_path),
+        tts=tts_metrics,
         video_duration_seconds=video_duration,
     )
     write_benchmark(paths.benchmark_path, benchmark)

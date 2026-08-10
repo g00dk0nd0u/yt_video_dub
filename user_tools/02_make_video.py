@@ -106,6 +106,8 @@ def main() -> int:
     ]
     if make_audio:
         args.append("--resume")
+    else:
+        args.append("--skip-tts")
     if make_mp4:
         args.append("--mux-video")
 
