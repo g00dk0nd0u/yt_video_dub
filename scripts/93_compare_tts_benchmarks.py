@@ -11,7 +11,20 @@ from typing import Any
 from path_layout import build_job_paths
 
 
-COMPARABILITY_FIELDS = ("workload_hash", "speaker_id", "base_url", "selected_units")
+COMPARABILITY_FIELDS = (
+    "workload_hash", "speaker_id", "base_url", "selected_units",
+    "benchmark_schema_version", "max_speed_scale", "timeout_seconds",
+    "hardware.system", "hardware.machine",
+)
+
+
+def _nested_value(sample: dict[str, Any], field: str) -> Any:
+    value: Any = sample
+    for part in field.split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value
 
 
 def load_samples(directory: Path) -> list[dict[str, Any]]:
@@ -26,7 +39,7 @@ def load_samples(directory: Path) -> list[dict[str, Any]]:
 def comparability_warnings(samples: list[dict[str, Any]]) -> list[str]:
     warnings = []
     for field in COMPARABILITY_FIELDS:
-        values = {json.dumps(sample.get(field), sort_keys=True) for sample in samples}
+        values = {json.dumps(_nested_value(sample, field), sort_keys=True) for sample in samples}
         if len(values) > 1:
             warnings.append(f"NOT COMPARABLE: {field} differs between samples.")
     return warnings
@@ -34,16 +47,24 @@ def comparability_warnings(samples: list[dict[str, Any]]) -> list[str]:
 
 def format_summary(samples: list[dict[str, Any]]) -> str:
     lines = [
-        "Workers  Units  TTS sec  Units/s  Normal  Speed-fit  OK/FIT/NG  Errors  Workload hash"
+        "Workers  Speech Units  TTS sec  Units/s  Normal  Speed-fit  OK/FIT/NG  Skipped  Errors  Workload hash"
     ]
     for sample in samples:
         fit = f"{sample.get('fit_ok_count', 0)}/{sample.get('fit_fitted_count', 0)}/{sample.get('fit_ng_count', 0)}"
+        tts_seconds = sample.get("tts_wall_seconds")
+        throughput = sample.get("units_per_second")
+        tts_display = f"{tts_seconds:.2f}" if isinstance(tts_seconds, (int, float)) else "-"
+        throughput_display = f"{throughput:.2f}" if isinstance(throughput, (int, float)) else "-"
+        errors = sample.get("errors")
+        error_count = len(errors) if isinstance(errors, list) else 0
+        workload = sample.get("workload_hash")
+        workload_display = workload[:12] if isinstance(workload, str) else "-"
         lines.append(
-            f"{sample.get('workers', '-'):>7}  {sample.get('selected_units', '-'):>5}  "
-            f"{sample.get('tts_wall_seconds', 0):>7.2f}  {sample.get('units_per_second', 0):>7.2f}  "
+            f"{sample.get('workers', '-'):>7}  {sample.get('speech_units', '-'):>12}  "
+            f"{tts_display:>7}  {throughput_display:>7}  "
             f"{sample.get('normal_synthesis_count', 0):>6}  "
             f"{sample.get('speed_fit_synthesis_count', 0):>9}  {fit:>9}  "
-            f"{len(sample.get('errors', [])):>6}  {sample.get('workload_hash', '-')[:12]}"
+            f"{sample.get('skipped_empty_units', 0):>7}  {error_count:>6}  {workload_display}"
         )
     warnings = comparability_warnings(samples)
     if warnings:
