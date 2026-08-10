@@ -1,4 +1,7 @@
+import importlib.util
 import json
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -43,3 +46,53 @@ def test_pipeline_selective_mode_and_translated_skip(tmp_path, load_script, monk
         "status": "skipped", "seconds": 0.0,
     }
     assert payload["stages"]["mux"]["status"] == "skipped"
+
+
+def test_skip_tts_does_not_run_generator_or_reuse_stale_metrics(
+    tmp_path, load_script, monkeypatch
+):
+    module = load_script("91_run_local_tts_pipeline.py")
+    manifest = tmp_path / "job/06_tts/tts_manifest.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(json.dumps({"run_metrics": {"generated_units": 50}}))
+    calls = []
+    monkeypatch.setattr(module, "_run_step",
+                        lambda _label, filename, _args: calls.append(filename))
+    monkeypatch.setattr(module, "_probe_video_duration", lambda *args: None)
+
+    module.main(["--job-id", "job", "--output-dir", str(tmp_path),
+                 "--skip-build-translated", "--skip-tts"])
+
+    assert "06_generate_tts_segments.py" not in calls
+    assert "07_build_dub_audio.py" in calls
+    payload = json.loads((tmp_path / "job/10_metrics/benchmark.json").read_text())
+    assert payload["stages"]["tts"] == {"status": "skipped", "seconds": 0.0}
+    assert payload["tts"]["status"] == "skipped"
+    assert payload["tts"]["generated_units"] == 0
+
+
+def test_user_tool_audio_no_passes_skip_tts_without_resume(monkeypatch):
+    path = Path(__file__).parents[1] / "user_tools/02_make_video.py"
+    spec = importlib.util.spec_from_file_location("test_user_make_video", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    captured = []
+    monkeypatch.setattr(module, "_latest_video_id", lambda: "job")
+    monkeypatch.setattr(module, "_prompt_with_default", lambda *args: "job")
+    answers = iter([False, False])
+    monkeypatch.setattr(module, "_prompt_yes_no", lambda *args, **kwargs: next(answers))
+    monkeypatch.setattr(module, "_load_pipeline_module",
+                        lambda: SimpleNamespace(main=lambda args: captured.extend(args)))
+    fake_paths = SimpleNamespace(
+        dubbed_video_path=Path("output/job/dubbed_video.mp4"),
+        job_dir=Path("output/job"),
+    )
+    monkeypatch.setattr(module, "_load_path_layout_module", lambda: SimpleNamespace(
+        build_job_paths=lambda *args: fake_paths
+    ))
+
+    module.main()
+
+    assert "--skip-tts" in captured
+    assert "--resume" not in captured
