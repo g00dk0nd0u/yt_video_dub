@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
+import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
-
 
 DEFAULT_JOB_ID = "phase1_smoke_rick"
 DEFAULT_OUTPUT_DIR = "output"
@@ -18,6 +20,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+
+from path_layout import build_job_paths
+from performance_metrics import StageTimer, build_benchmark, format_summary, write_benchmark
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -71,6 +76,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Pass --resume to scripts/06_generate_tts_segments.py.",
     )
     parser.add_argument(
+        "--skip-tts",
+        action="store_true",
+        help="Skip scripts/06_generate_tts_segments.py and use existing TTS artifacts in later stages.",
+    )
+    parser.add_argument(
         "--start-index",
         type=int,
         help="1-based translated segment index to start audio generation from.",
@@ -112,9 +122,40 @@ def _run_step(label: str, module_filename: str, step_args: list[str]) -> None:
     print("")
 
 
+def _probe_video_duration(path: Path, ffprobe_bin: str) -> float | None:
+    if not path.exists():
+        return None
+    try:
+        result = subprocess.run(
+            [ffprobe_bin, "-v", "error", "-show_entries", "format=duration",
+             "-of", "json", str(path)],
+            check=True, capture_output=True, text=True,
+        )
+        duration = float(json.loads(result.stdout)["format"]["duration"])
+        return round(duration, 6) if duration > 0 else None
+    except (FileNotFoundError, subprocess.CalledProcessError, KeyError, TypeError,
+            ValueError, json.JSONDecodeError):
+        return None
+
+
+def _load_tts_run_metrics(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    metrics = payload.get("run_metrics")
+    return metrics if isinstance(metrics, dict) else {}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.skip_tts and any((args.resume, args.force_tts, args.start_index is not None,
+                              args.end_index is not None, args.segment_ids)):
+        parser.error("--skip-tts cannot be combined with TTS generation options.")
+    pipeline_started = time.perf_counter()
+    timer = StageTimer()
+    paths = build_job_paths(args.output_dir, args.job_id)
 
     common_job_args = [
         "--job-id",
@@ -124,11 +165,13 @@ def main(argv: list[str] | None = None) -> int:
     ]
 
     if not args.skip_build_translated:
-        _run_step(
-            "Step 1: build translated text data",
-            "04_build_translated_segments.py",
-            common_job_args,
+        timer.run(
+            "translated_build",
+            lambda: _run_step("Step 1: build translated text data",
+                              "04_build_translated_segments.py", common_job_args),
         )
+    else:
+        timer.skip("translated_build")
 
     tts_args = [
         "--job-id",
@@ -151,26 +194,55 @@ def main(argv: list[str] | None = None) -> int:
     for segment_id in args.segment_ids or []:
         tts_args.extend(["--segment-id", segment_id])
 
-    _run_step(
-        "Step 2: generate Japanese audio segments",
-        "06_generate_tts_segments.py",
-        tts_args,
-    )
-    _run_step(
-        "Step 3: combine Japanese audio",
-        "07_build_dub_audio.py",
-        common_job_args,
+    if args.skip_tts:
+        timer.skip("tts")
+    else:
+        timer.run(
+            "tts",
+            lambda: _run_step("Step 2: generate Japanese audio segments",
+                              "06_generate_tts_segments.py", tts_args),
+        )
+    timer.run(
+        "dub_audio_build",
+        lambda: _run_step("Step 3: combine Japanese audio",
+                          "07_build_dub_audio.py", common_job_args),
     )
     if args.mux_video:
-        _run_step(
-            "Step 4: create fixed-timeline dubbed video",
-            "08_mux_video.py",
-            common_job_args
-            + [
-                "--ffmpeg-bin",
-                args.ffmpeg_bin,
-            ],
+        timer.run(
+            "mux",
+            lambda: _run_step(
+                "Step 4: create fixed-timeline dubbed video", "08_mux_video.py",
+                common_job_args + ["--ffmpeg-bin", args.ffmpeg_bin],
+            ),
         )
+    else:
+        timer.skip("mux")
+
+    video_duration = _probe_video_duration(paths.resolve_source_video_path(), args.ffprobe_bin)
+    run_mode = "selective_retry" if args.segment_ids else ("resume" if args.resume else "full")
+    tts_metrics = ({
+        "status": "skipped",
+        "selected_units": 0,
+        "generated_units": 0,
+        "reused_units": 0,
+        "skipped_empty_units": 0,
+        "normal_synthesis_count": 0,
+        "speed_fit_synthesis_count": 0,
+        "fit_ok_count": 0,
+        "fit_fitted_count": 0,
+        "fit_ng_count": 0,
+    } if args.skip_tts else _load_tts_run_metrics(paths.tts_manifest_path))
+    benchmark = build_benchmark(
+        job_id=args.job_id,
+        run_mode=run_mode,
+        total_pipeline_seconds=time.perf_counter() - pipeline_started,
+        stages=timer.stages,
+        tts=tts_metrics,
+        video_duration_seconds=video_duration,
+    )
+    write_benchmark(paths.benchmark_path, benchmark)
+    print(format_summary(benchmark))
+    print(f"Benchmark: {paths.benchmark_path}")
     print("Video build completed.")
     print(f"Lightweight files under output/{args.job_id}/ (*.json, *.txt, *.srt) can be committed.")
     return 0

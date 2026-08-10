@@ -7,6 +7,7 @@ import argparse
 import io
 import json
 import math
+import time
 import wave
 from datetime import datetime, timezone
 from pathlib import Path
@@ -346,6 +347,7 @@ def _write_manifest(
     speaker_id: int,
     total_segments: int,
     items: list[dict[str, Any]],
+    run_metrics: dict[str, Any],
 ) -> None:
     payload = {
         "job_id": job_id,
@@ -353,6 +355,7 @@ def _write_manifest(
         "speaker_id": speaker_id,
         "total_segments": total_segments,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "run_metrics": run_metrics,
         "items": items,
     }
     manifest_path.write_text(
@@ -447,6 +450,15 @@ def _select_process_segments(
     return indexed_segments, has_range or bool(segment_ids)
 
 
+def _fit_counts(items: list[dict[str, Any]]) -> dict[str, int]:
+    fitted_items = [item for item in items if item.get("status") != "skipped_empty"]
+    return {
+        "fit_ok_count": sum(item.get("fit_status") == "ok" for item in fitted_items),
+        "fit_fitted_count": sum(item.get("fit_status") == "fitted" for item in fitted_items),
+        "fit_ng_count": sum(item.get("fit_status") == "ng" for item in fitted_items),
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -501,6 +513,17 @@ def main(argv: list[str] | None = None) -> int:
         if isinstance(item.get("index"), int)
     }
     current_settings = {"base_url": base_url, "speaker_id": args.speaker_id}
+    run_started = time.perf_counter()
+    run_metrics: dict[str, Any] = {
+        "selected_units": len(process_segments),
+        "generated_units": 0,
+        "reused_units": 0,
+        "skipped_empty_units": 0,
+        "normal_synthesis_count": 0,
+        "speed_fit_synthesis_count": 0,
+        "audio_query_wall_seconds": 0.0,
+        "synthesis_wall_seconds": 0.0,
+    }
     if has_range and existing_manifest_items is None:
         print(
             "Warning: partial run requested without an existing tts_manifest.json. "
@@ -519,6 +542,7 @@ def main(argv: list[str] | None = None) -> int:
 
             if text == "":
                 status = "skipped_empty"
+                run_metrics["skipped_empty_units"] += 1
                 manifest_items.append(
                     _build_manifest_item(item_index, segment, None, status,
                                          **_fit_fields(available_duration, 0, 0, 1.0, "ok", 0))
@@ -541,6 +565,7 @@ def main(argv: list[str] | None = None) -> int:
                     if existing_item.get("wav_path") != wav_relative_path:
                         continue
                     status = "reused"
+                    run_metrics["reused_units"] += 1
                     reused_duration = _measure_wav_duration(reuse_candidate)
                     manifest_items.append(
                         _build_manifest_item(
@@ -560,6 +585,7 @@ def main(argv: list[str] | None = None) -> int:
                 if reuse_candidate is not None:
                     continue
 
+            request_started = time.perf_counter()
             audio_query_payload = _post_audio_query(
                 session=session,
                 base_url=base_url,
@@ -567,8 +593,10 @@ def main(argv: list[str] | None = None) -> int:
                 text=text,
                 timeout=args.timeout,
             )
+            run_metrics["audio_query_wall_seconds"] += time.perf_counter() - request_started
             # Always establish the baseline at normal speed before considering a retry.
             audio_query_payload["speedScale"] = 1.0
+            request_started = time.perf_counter()
             wav_bytes = _post_synthesis(
                 session=session,
                 base_url=base_url,
@@ -576,6 +604,8 @@ def main(argv: list[str] | None = None) -> int:
                 audio_query_payload=audio_query_payload,
                 timeout=args.timeout,
             )
+            run_metrics["synthesis_wall_seconds"] += time.perf_counter() - request_started
+            run_metrics["normal_synthesis_count"] += 1
             raw_tts_duration = _measure_wav_duration(wav_bytes)
             classification, required_speed, should_retry = _classify_duration(
                 raw_tts_duration, available_duration, args.max_speed_scale
@@ -587,16 +617,20 @@ def main(argv: list[str] | None = None) -> int:
             if should_retry:
                 speed_scale = required_speed
                 audio_query_payload["speedScale"] = speed_scale
+                request_started = time.perf_counter()
                 wav_bytes = _post_synthesis(
                     session=session, base_url=base_url, speaker_id=args.speaker_id,
                     audio_query_payload=audio_query_payload, timeout=args.timeout,
                 )
+                run_metrics["synthesis_wall_seconds"] += time.perf_counter() - request_started
+                run_metrics["speed_fit_synthesis_count"] += 1
                 retry_count = 1
                 final_tts_duration = _measure_wav_duration(wav_bytes)
                 fit_status = "fitted" if final_tts_duration <= available_duration else "ng"
             wav_output_path.write_bytes(wav_bytes)
 
             status = "generated"
+            run_metrics["generated_units"] += 1
             wav_relative_path = paths.rel_to_job(wav_output_path)
             manifest_items.append(
                 _build_manifest_item(
@@ -625,6 +659,15 @@ def main(argv: list[str] | None = None) -> int:
             items_by_index[item["index"]] = item
         manifest_items = [items_by_index[index] for index in sorted(items_by_index)]
 
+    run_metrics.update(_fit_counts([
+        item for item in manifest_items
+        if item.get("index") in {index for index, _segment in process_segments}
+    ]))
+    run_metrics["manifest_counts"] = _fit_counts(manifest_items)
+    for field in ("audio_query_wall_seconds", "synthesis_wall_seconds"):
+        run_metrics[field] = round(run_metrics[field], 6)
+    run_metrics["tts_wall_seconds"] = round(time.perf_counter() - run_started, 6)
+
     _write_manifest(
         manifest_path=manifest_path,
         job_id=args.job_id,
@@ -632,6 +675,7 @@ def main(argv: list[str] | None = None) -> int:
         speaker_id=args.speaker_id,
         total_segments=total_segments,
         items=manifest_items,
+        run_metrics=run_metrics,
     )
     _write_retry_artifact(paths.duration_retry_required_path, manifest_items)
 
