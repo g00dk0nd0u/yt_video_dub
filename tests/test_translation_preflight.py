@@ -93,6 +93,30 @@ def test_final_segment_hard_failures(tmp_path, load_script, mutation, error):
     assert error in report["errors"][0]
 
 
+def test_final_segment_corrupted_duration_is_rejected(tmp_path, load_script):
+    module = load_script("05_preflight_local_run.py")
+    job, _, _, final = _write_job(tmp_path)
+    final[0]["duration"] = 99.0
+    (job / "05_segments/translated_segments.json").write_text(
+        json.dumps({"segments": final})
+    )
+    code, report = _run(module, tmp_path)
+    assert code == 1 and report["status"] == "not_ready"
+    assert "stale" in report["errors"][0]
+
+
+def test_final_segment_non_finite_duration_is_rejected(tmp_path, load_script):
+    module = load_script("05_preflight_local_run.py")
+    job, _, _, final = _write_job(tmp_path)
+    final[0]["duration"] = float("nan")
+    (job / "05_segments/translated_segments.json").write_text(
+        json.dumps({"segments": final}, allow_nan=True)
+    )
+    code, report = _run(module, tmp_path)
+    assert code == 1 and report["status"] == "not_ready"
+    assert "duration" in report["errors"][0]
+
+
 def test_blank_translation_fails_but_empty_source_is_allowed(tmp_path, load_script):
     module = load_script("05_preflight_local_run.py")
     _write_job(tmp_path, translated_text="   ", second=False)
