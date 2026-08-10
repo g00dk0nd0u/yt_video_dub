@@ -28,6 +28,13 @@ def _canonical_segments(segments: list[dict]) -> list[dict]:
     return [{key: item[key] for key in ("segment_id", "start", "end", "text")} for item in segments]
 
 
+def _integrity_segments(segments: list[dict]) -> list[dict]:
+    return [
+        {key: item[key] for key in ("segment_id", "start", "end", "duration", "text")}
+        for item in segments
+    ]
+
+
 def _fingerprint(segments: list[dict]) -> str:
     canonical = json.dumps(_canonical_segments(segments), ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -79,15 +86,17 @@ def _validate_final(path: Path, expected: list[dict], expected_total: int | None
         seen.add(segment_id)
         if not isinstance(segment.get("text"), str):
             raise RuntimeError(f"Translated segment {segment_id} text must be a string.")
-        start, end = segment.get("start"), segment.get("end")
+        start, end, duration = segment.get("start"), segment.get("end"), segment.get("duration")
         if not _number(start) or not _number(end):
             raise RuntimeError(f"Translated segment {segment_id} timing must be finite numbers.")
+        if not _number(duration):
+            raise RuntimeError(f"Translated segment {segment_id} duration must be a finite number.")
         if start < 0 or end <= start:
             raise RuntimeError(f"Translated segment {segment_id} has invalid timing: start={start}, end={end}.")
         if previous_start is not None and start < previous_start:
             raise RuntimeError(f"Translated segment {segment_id} is out of timeline order.")
         previous_start = start
-    if _canonical_segments(segments) != _canonical_segments(expected):
+    if _integrity_segments(segments) != _integrity_segments(expected):
         raise RuntimeError("translated_segments.json is stale or does not match translation chunks.")
     return segments
 
