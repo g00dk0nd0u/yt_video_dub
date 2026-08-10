@@ -7,6 +7,9 @@ import argparse
 import json
 
 from path_layout import build_job_paths
+from translation_handoff import load_jsonl as _load_jsonl
+from translation_handoff import load_manifest as _load_manifest
+from translation_handoff import validate_chunk_pair as _validate_chunk_pair
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,89 +35,6 @@ def _format_srt_timestamp(seconds: float) -> str:
     minutes, rem = divmod(rem, 60_000)
     secs, millis = divmod(rem, 1000)
     return f"{hours:02}:{minutes:02}:{secs:02},{millis:03}"
-
-
-def _load_manifest(manifest_path) -> dict:
-    if not manifest_path.exists():
-        raise FileNotFoundError(f"Missing manifest file: {manifest_path}")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    chunks = manifest.get("chunks")
-    if not isinstance(chunks, list) or not chunks:
-        raise RuntimeError(f"{manifest_path} does not contain any chunks.")
-    return manifest
-
-
-def _load_jsonl(path: Path) -> list[dict]:
-    if not path.exists():
-        raise FileNotFoundError(f"Missing chunk file: {path}")
-
-    items: list[dict] = []
-    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        if not raw_line.strip():
-            continue
-        try:
-            item = json.loads(raw_line)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"Invalid JSONL in {path} at line {line_number}.") from exc
-        if not isinstance(item, dict):
-            raise RuntimeError(f"Expected a JSON object in {path} at line {line_number}.")
-        items.append(item)
-    return items
-
-
-def _validate_chunk_pair(
-    source_items: list[dict],
-    translated_items: list[dict],
-    source_path: Path,
-    translated_path: Path,
-) -> list[dict]:
-    if len(source_items) != len(translated_items):
-        raise RuntimeError(
-            "Chunk line count mismatch: "
-            f"{translated_path} has {len(translated_items)} lines, "
-            f"but {source_path} has {len(source_items)}."
-        )
-
-    merged_items: list[dict] = []
-    for index, (source_item, translated_item) in enumerate(
-        zip(source_items, translated_items),
-        start=1,
-    ):
-        fields = ["segment_id", "start", "end"]
-        if "duration" in source_item:
-            fields.append("duration")
-        for field in fields:
-            if translated_item.get(field) != source_item.get(field):
-                raise RuntimeError(
-                    f"Chunk validation failed at {translated_path} line {index}: "
-                    f"{field} does not match the source chunk."
-                )
-
-        if "text" not in translated_item:
-            raise RuntimeError(
-                f"Chunk validation failed at {translated_path} line {index}: "
-                "text is missing from the translated chunk."
-            )
-
-        translated_text = translated_item["text"]
-        if not isinstance(translated_text, str):
-            raise RuntimeError(
-                f"Chunk validation failed at {translated_path} line {index}: "
-                "text must be a string."
-            )
-
-        merged_items.append(
-            {
-                "segment_id": source_item["segment_id"],
-                "start": source_item["start"],
-                "end": source_item["end"],
-                "duration": source_item.get(
-                    "duration", round(source_item["end"] - source_item["start"], 3)
-                ),
-                "text": translated_text,
-            }
-        )
-    return merged_items
 
 
 def _write_translated_segments_json(output_path, source_manifest: str, job_id: str, segments: list[dict]) -> None:

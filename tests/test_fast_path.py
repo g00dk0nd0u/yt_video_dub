@@ -261,6 +261,6 @@ def test_local_pipeline_forwards_repeatable_segment_ids(load_script, monkeypatch
                         lambda label, filename, args: calls.append((filename, args)))
     module.main(["--job-id", "job", "--output-dir", str(tmp_path), "--skip-build-translated",
                  "--segment-id", "utt_0001", "--segment-id", "utt_0003"])
-    tts_args = calls[0][1]
+    tts_args = next(args for filename, args in calls if filename == "06_generate_tts_segments.py")
     assert tts_args.count("--segment-id") == 2
     assert "utt_0001" in tts_args and "utt_0003" in tts_args
