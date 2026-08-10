@@ -38,7 +38,7 @@
 - Never commit `synced_segments/*.mp4` or `synced_segments/*.wav`.
 - Do not run AivisSpeech TTS generation, WAV generation, synced segment generation, synced MP4 creation, or long ffmpeg processing when handling a URL-only request.
 - The user-side local completion command is `python user_tools/02_make_video.py`.
-- The non-interactive local command is `python3 scripts/91_run_local_tts_pipeline.py --job-id <video_id> --output-dir output --base-url http://127.0.0.1:10101 --speaker-id 1937616896 --ffmpeg-bin ffmpeg --ffprobe-bin ffprobe --force-tts --mux-video`.
+- The normal non-interactive local command is `python3 scripts/91_run_local_tts_pipeline.py --job-id <video_id> --output-dir output --base-url http://127.0.0.1:10101 --speaker-id 1937616896 --ffmpeg-bin ffmpeg --ffprobe-bin ffprobe --resume --mux-video`. Use `--force-tts` only for an explicit full regeneration.
 - Default AivisSpeech settings are `http://127.0.0.1:10101` and `speaker_id 1937616896`.
 - Default ffmpeg tools are `ffmpeg` and `ffprobe`.
 - If the run fails, report only the step where it stopped and keep the report concise.

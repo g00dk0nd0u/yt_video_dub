@@ -107,6 +107,10 @@ class JobPaths:
         return self.segments_dir / "translated_segments.srt"
 
     @property
+    def local_run_preflight_path(self) -> Path:
+        return self.segments_dir / "local_run_preflight.json"
+
+    @property
     def tts_manifest_path(self) -> Path:
         return self.tts_dir / "tts_manifest.json"
 

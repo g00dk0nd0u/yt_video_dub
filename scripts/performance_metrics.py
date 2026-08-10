@@ -63,9 +63,10 @@ def format_summary(payload: dict[str, Any]) -> str:
     stages = payload["stages"]
     tts = payload.get("tts", {})
     stage_lines = []
-    for key, label in (("translated_build", "translated"), ("tts", "TTS"),
+    for key, label in (("translated_build", "translated"),
+                       ("translation_preflight", "preflight"), ("tts", "TTS"),
                        ("dub_audio_build", "audio"), ("mux", "mux")):
-        stage = stages[key]
+        stage = stages.get(key, {"status": "skipped", "seconds": 0.0})
         value = "skipped" if stage["status"] == "skipped" else f'{stage["seconds"]:.1f} s'
         stage_lines.append(f"{label:<11}: {value}")
     duration = payload.get("video_duration_seconds")
