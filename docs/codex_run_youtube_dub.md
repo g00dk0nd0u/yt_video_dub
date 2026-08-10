@@ -50,6 +50,21 @@ Rules:
 
 ## 4. Do Not Run Local Media Generation
 
+Build and validate the lightweight handoff artifacts first:
+
+```bash
+python3 scripts/04_build_translated_segments.py \
+  --job-id <video_id> \
+  --output-dir output
+
+python3 scripts/05_preflight_local_run.py \
+  --job-id <video_id> \
+  --output-dir output
+```
+
+If preflight is not `ready`, fix the named translation chunk and run both commands again.
+Do not report translation handoff complete until preflight is `ready`.
+
 Do not run:
 
 ```bash
@@ -60,7 +75,7 @@ python3 scripts/91_run_local_tts_pipeline.py \
   --speaker-id 1937616896 \
   --ffmpeg-bin ffmpeg \
   --ffprobe-bin ffprobe \
-  --force-tts \
+  --resume \
   --mux-video
 ```
 
@@ -76,6 +91,7 @@ Do not run:
 
 - `05_segments/translated_segments.json` exists.
 - `05_segments/translated_segments.srt` exists when the translation build step produces it.
+- `05_segments/local_run_preflight.json` exists and has `status: ready`.
 - `04_translation_output/chunk_*.txt` exists for every input chunk.
 
 ## 6. Git
@@ -126,6 +142,6 @@ python3 scripts/91_run_local_tts_pipeline.py \
   --speaker-id 1937616896 \
   --ffmpeg-bin ffmpeg \
   --ffprobe-bin ffprobe \
-  --force-tts \
+  --resume \
   --mux-video
 ```

@@ -118,7 +118,9 @@ def _load_script_module(filename: str) -> Any:
 def _run_step(label: str, module_filename: str, step_args: list[str]) -> None:
     module = _load_script_module(module_filename)
     print(f"== {label} ==")
-    module.main(step_args)
+    result = module.main(step_args)
+    if result not in (None, 0):
+        raise RuntimeError(f"{module_filename} failed with exit code {result}.")
     print("")
 
 
@@ -173,6 +175,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         timer.skip("translated_build")
 
+    timer.run(
+        "translation_preflight",
+        lambda: _run_step("Step 2: validate translation handoff",
+                          "05_preflight_local_run.py", common_job_args),
+    )
+
     tts_args = [
         "--job-id",
         args.job_id,
@@ -199,19 +207,19 @@ def main(argv: list[str] | None = None) -> int:
     else:
         timer.run(
             "tts",
-            lambda: _run_step("Step 2: generate Japanese audio segments",
+            lambda: _run_step("Step 3: generate Japanese audio segments",
                               "06_generate_tts_segments.py", tts_args),
         )
     timer.run(
         "dub_audio_build",
-        lambda: _run_step("Step 3: combine Japanese audio",
+        lambda: _run_step("Step 4: combine Japanese audio",
                           "07_build_dub_audio.py", common_job_args),
     )
     if args.mux_video:
         timer.run(
             "mux",
             lambda: _run_step(
-                "Step 4: create fixed-timeline dubbed video", "08_mux_video.py",
+                "Step 5: create fixed-timeline dubbed video", "08_mux_video.py",
                 common_job_args + ["--ffmpeg-bin", args.ffmpeg_bin],
             ),
         )
