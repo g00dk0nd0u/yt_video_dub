@@ -56,7 +56,7 @@ output/<video_id>/
 - This path is English→Japanese only and prioritizes YouTube transcripts. Whisper fallback is not implemented.
 - Raw caption fragments remain intact; deterministic normalization removes rolling-caption duplication and creates mapped utterance units before translation.
 - Every Japanese WAV is anchored to its source absolute start. A long prior WAV never shifts a later utterance, so cumulative drift is forbidden.
-- Audio beyond the utterance hard end or next absolute start is faded, clipped, and explicitly reported. Duration-aware selective retry is planned for Issue #4.
+- Audio beyond the utterance hard end or next absolute start is faded, clipped, and explicitly reported. Duration-aware fitting and selective retry are available in the Fast Path.
 - The original soundtrack remains at about -38 dB and is mixed with the Japanese dub without `amix` normalization.
 - ffmpeg copies the original video stream and does not use `-shortest`; the source video timeline and duration remain unchanged.
 - `09_build_synced_video.py` is a legacy/reference per-segment trim, speed-change, re-encode, and concat path and is not called by the normal pipeline.

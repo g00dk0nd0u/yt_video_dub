@@ -45,6 +45,7 @@ def test_pipeline_selective_mode_and_translated_skip(tmp_path, load_script, monk
     assert payload["stages"]["translated_build"] == {
         "status": "skipped", "seconds": 0.0,
     }
+    assert payload["stages"]["translation_preflight"]["status"] == "completed"
     assert payload["stages"]["mux"]["status"] == "skipped"
 
 
@@ -69,6 +70,47 @@ def test_skip_tts_does_not_run_generator_or_reuse_stale_metrics(
     assert payload["stages"]["tts"] == {"status": "skipped", "seconds": 0.0}
     assert payload["tts"]["status"] == "skipped"
     assert payload["tts"]["generated_units"] == 0
+
+
+def test_pipeline_order_and_preflight_failure_blocks_tts(tmp_path, load_script, monkeypatch):
+    module = load_script("91_run_local_tts_pipeline.py")
+    calls = []
+
+    def record(_label, filename, _args):
+        calls.append(filename)
+        if filename == "05_preflight_local_run.py":
+            raise RuntimeError("not ready")
+
+    monkeypatch.setattr(module, "_run_step", record)
+    with pytest.raises(RuntimeError, match="not ready"):
+        module.main(["--job-id", "job", "--output-dir", str(tmp_path)])
+    assert calls == ["04_build_translated_segments.py", "05_preflight_local_run.py"]
+
+
+def test_pipeline_runs_build_preflight_tts_audio_in_order(tmp_path, load_script, monkeypatch):
+    module = load_script("91_run_local_tts_pipeline.py")
+    calls = []
+    monkeypatch.setattr(module, "_run_step",
+                        lambda _label, filename, _args: calls.append(filename))
+    monkeypatch.setattr(module, "_probe_video_duration", lambda *args: None)
+    module.main(["--job-id", "job", "--output-dir", str(tmp_path)])
+    assert calls == [
+        "04_build_translated_segments.py", "05_preflight_local_run.py",
+        "06_generate_tts_segments.py", "07_build_dub_audio.py",
+    ]
+
+
+def test_pipeline_order_includes_preflight_when_build_skipped(
+    tmp_path, load_script, monkeypatch
+):
+    module = load_script("91_run_local_tts_pipeline.py")
+    calls = []
+    monkeypatch.setattr(module, "_run_step",
+                        lambda _label, filename, _args: calls.append(filename))
+    monkeypatch.setattr(module, "_probe_video_duration", lambda *args: None)
+    module.main(["--job-id", "job", "--output-dir", str(tmp_path),
+                 "--skip-build-translated", "--skip-tts"])
+    assert calls == ["05_preflight_local_run.py", "07_build_dub_audio.py"]
 
 
 def test_user_tool_audio_no_passes_skip_tts_without_resume(monkeypatch):

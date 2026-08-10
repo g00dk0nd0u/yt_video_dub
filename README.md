@@ -38,7 +38,7 @@ python user_tools/99_cleanup.py
 普段ユーザーが触るのは `user_tools/` の3本だけです。
 
 1. `user_tools/01_new_youtube.py` を実行して YouTube URL を貼る
-2. Codex に URL を渡した場合は、`scripts/run_prepare.py` 実行と `output/<video_id>/03_translation_input/chunk_*.txt` の翻訳を行い、`output/<video_id>/04_translation_output/chunk_*.txt` まで作る
+2. Codex に URL を渡した場合は翻訳後に build と preflight を行い、`local_run_preflight.json` が `ready` になるまで handoff を完了扱いにしない
 3. 動画生成はユーザーの Mac で AivisSpeech を起動してから `user_tools/02_make_video.py` を実行する
 4. `output/<video_id>/dubbed_video.mp4` を開く
 5. 掃除したい時は `user_tools/99_cleanup.py` を実行する
@@ -66,7 +66,7 @@ python3 scripts/91_run_local_tts_pipeline.py \
   --speaker-id 1937616896 \
   --ffmpeg-bin ffmpeg \
   --ffprobe-bin ffprobe \
-  --force-tts \
+  --resume \
   --mux-video
 ```
 
@@ -93,6 +93,7 @@ output/<video_id>/
   05_segments/
     translated_segments.json
     translated_segments.srt
+    local_run_preflight.json
   06_tts/
     tts_manifest.json
   07_audio/
@@ -123,4 +124,4 @@ Finder では `output/<video_id>/dubbed_video.mp4` が完成動画として直�
 - YouTube 字幕取得は `youtube-transcript-api` を本線にする方針です。
 - Whisper は YouTube 字幕が取得できない場合やローカル動画向け fallback として将来追加予定です。現状は分かりやすいエラーで停止します。
 - AivisSpeech はローカル接続前提です。詳細は [docs/workflow.md](docs/workflow.md) にあります。
-- 字幕正規化は決定的な pure-Python 処理で、LLM は使いません。duration-aware selective retry は Issue #4 で対応予定です。
+- 字幕正規化は決定的な pure-Python 処理で、LLM は使いません。Fast Path は duration-aware fitting、selective retry、検証付き resume/cache に対応しています。
