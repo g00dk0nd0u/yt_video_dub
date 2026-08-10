@@ -152,6 +152,12 @@ def test_unchanged_resume_reuses_wav_and_keeps_fitted_metadata(tmp_path, load_sc
     item = json.loads((job / "06_tts/tts_manifest.json").read_text())["items"][0]
     assert item["status"] == "reused"
     assert {field: item[field] for field in module.FIT_METADATA_FIELDS} == metadata
+    run_metrics = json.loads((job / "06_tts/tts_manifest.json").read_text())["run_metrics"]
+    assert run_metrics["selected_units"] == 1
+    assert run_metrics["reused_units"] == 1
+    assert run_metrics["generated_units"] == 0
+    assert run_metrics["normal_synthesis_count"] == 0
+    assert run_metrics["speed_fit_synthesis_count"] == 0
 
 
 def test_corrected_text_resume_regenerates_and_updates_selective_retry_artifact(
@@ -200,17 +206,60 @@ def test_corrected_text_resume_regenerates_and_updates_selective_retry_artifact(
     assert manifest["items"][0]["status"] == "generated"
     assert manifest["items"][0]["text"] == "短い翻訳"
     assert manifest["items"][0]["fit_status"] == "ok"
+    assert manifest["run_metrics"]["selected_units"] == 1
+    assert manifest["run_metrics"]["generated_units"] == 1
+    assert manifest["run_metrics"]["normal_synthesis_count"] == 1
+    assert manifest["run_metrics"]["fit_ok_count"] == 1
+    assert manifest["run_metrics"]["manifest_counts"]["fit_ng_count"] == 1
     retry_rows = [json.loads(line) for line in
                   (segments_dir / "duration_retry_required.jsonl").read_text().splitlines()]
     assert [row["segment_id"] for row in retry_rows] == ["utt_0002"]
 
 
-def test_local_pipeline_forwards_repeatable_segment_ids(load_script, monkeypatch):
+def test_tts_run_metrics_count_normal_and_speed_fit_synthesis(
+    tmp_path, load_script, monkeypatch
+):
+    module = load_script("06_generate_tts_segments.py")
+    job = tmp_path / "job"
+    (job / "05_segments").mkdir(parents=True)
+    (job / "05_segments/translated_segments.json").write_text(json.dumps({
+        "segments": [
+            {"segment_id": "ok", "start": 0.0, "end": 1.0, "text": "通常"},
+            {"segment_id": "fit", "start": 1.0, "end": 2.0, "text": "調整"},
+            {"segment_id": "ng", "start": 2.0, "end": 3.0, "text": "長い"},
+            {"segment_id": "empty1", "start": 3.0, "end": 4.0, "text": ""},
+            {"segment_id": "empty2", "start": 4.0, "end": 5.0, "text": ""},
+        ]
+    }))
+    wav_results = iter([
+        _wav_bytes(900), _wav_bytes(1080), _wav_bytes(950), _wav_bytes(1300)
+    ])
+    monkeypatch.setattr(module, "_post_audio_query", lambda **kwargs: {})
+    monkeypatch.setattr(module, "_post_synthesis", lambda **kwargs: next(wav_results))
+    monkeypatch.setattr(module.requests, "Session",
+                        lambda: type("Session", (), {"close": lambda self: None})())
+
+    module.main(["--job-id", "job", "--output-dir", str(tmp_path),
+                 "--base-url", "http://aivis", "--speaker-id", "10"])
+
+    metrics = json.loads((job / "06_tts/tts_manifest.json").read_text())["run_metrics"]
+    assert metrics["selected_units"] == 5
+    assert metrics["generated_units"] == 3
+    assert metrics["skipped_empty_units"] == 2
+    assert metrics["normal_synthesis_count"] == 3
+    assert metrics["speed_fit_synthesis_count"] == 1
+    assert (metrics["fit_ok_count"], metrics["fit_fitted_count"], metrics["fit_ng_count"]) == (1, 1, 1)
+    assert metrics["manifest_counts"] == {
+        "fit_ok_count": 1, "fit_fitted_count": 1, "fit_ng_count": 1,
+    }
+
+
+def test_local_pipeline_forwards_repeatable_segment_ids(load_script, monkeypatch, tmp_path):
     module = load_script("91_run_local_tts_pipeline.py")
     calls = []
     monkeypatch.setattr(module, "_run_step",
                         lambda label, filename, args: calls.append((filename, args)))
-    module.main(["--job-id", "job", "--skip-build-translated",
+    module.main(["--job-id", "job", "--output-dir", str(tmp_path), "--skip-build-translated",
                  "--segment-id", "utt_0001", "--segment-id", "utt_0003"])
     tts_args = calls[0][1]
     assert tts_args.count("--segment-id") == 2

@@ -55,6 +55,14 @@ class JobPaths:
         return self.job_dir / "09_simple_mux"
 
     @property
+    def metrics_dir(self) -> Path:
+        return self.job_dir / "10_metrics"
+
+    @property
+    def benchmark_path(self) -> Path:
+        return self.metrics_dir / "benchmark.json"
+
+    @property
     def source_video_path(self) -> Path:
         return self.source_dir / "source.mp4"
 
@@ -153,6 +161,9 @@ class JobPaths:
 
     def ensure_simple_mux_dir(self) -> None:
         self.simple_mux_dir.mkdir(parents=True, exist_ok=True)
+
+    def ensure_metrics_dir(self) -> None:
+        self.metrics_dir.mkdir(parents=True, exist_ok=True)
 
     def rel_to_job(self, path: Path) -> str:
         return str(path.relative_to(self.job_dir))
