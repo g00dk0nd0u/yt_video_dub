@@ -29,6 +29,7 @@ DEFAULT_SPEAKER_ID = 1937616896
 DEFAULT_TIMEOUT = 30.0
 MAX_SPEED_SCALE = 1.15
 ALLOWED_WORKERS = (1, 2, 4)
+BENCHMARK_SCHEMA_VERSION = 1
 
 
 class BenchmarkError(RuntimeError):
@@ -160,45 +161,56 @@ def benchmark_unit(
         "speed_fit_synthesis_count": 0, "error_type": None, "error_message": None,
     }
     if not segment["text"]:
-        result.update(status="skipped_empty", fit_status="ok")
+        result.update(status="skipped_empty", fit_status=None)
         return result
-    with requests.Session() as session:  # A session is owned by exactly one task/thread.
-        started = time.perf_counter()
-        query_response = _post(
-            session, f"{base_url}/audio_query",
-            params={"text": segment["text"], "speaker": speaker_id}, timeout=timeout,
-        )
-        result["audio_query_wall_seconds"] += time.perf_counter() - started
-        query = query_response.json()
-        if not isinstance(query, dict):
-            raise BenchmarkError("audio_query did not return a JSON object.")
-        query["speedScale"] = 1.0
-        started = time.perf_counter()
-        wav_data = _post(
-            session, f"{base_url}/synthesis", params={"speaker": speaker_id},
-            json=query, timeout=timeout,
-        ).content
-        result["synthesis_wall_seconds"] += time.perf_counter() - started
-        result["normal_synthesis_count"] = 1
-        raw = measure_wav_duration(wav_data)
-        available = max(0.0, segment["end"] - segment["start"])
-        classification, speed, retry = classify_duration(raw, available)
-        final = raw
-        if retry:
-            query["speedScale"] = speed
+    try:
+        with requests.Session() as session:  # A session is owned by exactly one task/thread.
             started = time.perf_counter()
-            fitted_data = _post(
-                session, f"{base_url}/synthesis", params={"speaker": speaker_id},
-                json=query, timeout=timeout,
-            ).content
-            result["synthesis_wall_seconds"] += time.perf_counter() - started
-            result["speed_fit_synthesis_count"] = 1
-            final = measure_wav_duration(fitted_data)
-            classification = "fitted" if final <= available else "ng"
+            try:
+                query_response = _post(
+                    session, f"{base_url}/audio_query",
+                    params={"text": segment["text"], "speaker": speaker_id}, timeout=timeout,
+                )
+            finally:
+                result["audio_query_wall_seconds"] += time.perf_counter() - started
+            query = query_response.json()
+            if not isinstance(query, dict):
+                raise BenchmarkError("audio_query did not return a JSON object.")
+            query["speedScale"] = 1.0
+            started = time.perf_counter()
+            try:
+                wav_data = _post(
+                    session, f"{base_url}/synthesis", params={"speaker": speaker_id},
+                    json=query, timeout=timeout,
+                ).content
+            finally:
+                result["synthesis_wall_seconds"] += time.perf_counter() - started
+            result["normal_synthesis_count"] = 1
+            raw = measure_wav_duration(wav_data)
+            available = max(0.0, segment["end"] - segment["start"])
+            classification, speed, retry = classify_duration(raw, available)
+            final = raw
+            if retry:
+                query["speedScale"] = speed
+                started = time.perf_counter()
+                try:
+                    fitted_data = _post(
+                        session, f"{base_url}/synthesis", params={"speaker": speaker_id},
+                        json=query, timeout=timeout,
+                    ).content
+                finally:
+                    result["synthesis_wall_seconds"] += time.perf_counter() - started
+                result["speed_fit_synthesis_count"] = 1
+                final = measure_wav_duration(fitted_data)
+                classification = "fitted" if final <= available else "ng"
+            result.update(
+                fit_status=classification, available_duration=round(available, 6),
+                raw_tts_duration=round(raw, 6), final_tts_duration=round(final, 6),
+                speed_scale=round(speed if retry else 1.0, 6),
+            )
+    except Exception as exc:
         result.update(
-            fit_status=classification, available_duration=round(available, 6),
-            raw_tts_duration=round(raw, 6), final_tts_duration=round(final, 6),
-            speed_scale=round(speed if retry else 1.0, 6),
+            status="failed", error_type=type(exc).__name__, error_message=_safe_error(exc)
         )
     return result
 
@@ -238,21 +250,34 @@ def run_workload(
 def build_sample(
     job_id: str, workers: int, base_url: str, speaker_id: int,
     workload: list[tuple[int, dict[str, Any]]], results: list[dict[str, Any]],
-    elapsed: float,
+    elapsed: float, timeout_seconds: float = DEFAULT_TIMEOUT,
 ) -> dict[str, Any]:
     errors = [{
         "index": item["index"], "segment_id": item["segment_id"],
         "error_type": item["error_type"], "error_message": item["error_message"],
     } for item in results if item["status"] == "failed"]
-    succeeded = sum(item["status"] != "failed" for item in results)
-    status = "failed" if not succeeded else ("completed_with_errors" if errors else "completed")
+    skipped_empty_units = sum(item["status"] == "skipped_empty" for item in results)
+    speech_units = len(workload) - skipped_empty_units
+    successful_speech_units = sum(
+        item["status"] not in ("failed", "skipped_empty") for item in results
+    )
+    status = (
+        "failed" if errors and speech_units > 0 and successful_speech_units == 0
+        else ("completed_with_errors" if errors else "completed")
+    )
     return {
         "job_id": job_id, "run_id": "", "generated_at": datetime.now(timezone.utc).isoformat(),
         "workers": workers, "cache_mode": "forced_fresh",
         "workload_hash": workload_hash(workload, speaker_id),
         "selected_units": len(workload),
+        "speech_units": speech_units,
+        "skipped_empty_units": skipped_empty_units,
+        "successful_speech_units": successful_speech_units,
         "segment_ids": [segment["segment_id"] for _, segment in workload],
         "speaker_id": speaker_id, "base_url": base_url, "status": status,
+        "benchmark_schema_version": BENCHMARK_SCHEMA_VERSION,
+        "max_speed_scale": MAX_SPEED_SCALE,
+        "timeout_seconds": timeout_seconds,
         "tts_wall_seconds": round(elapsed, 6),
         "audio_query_wall_seconds": round(sum(x["audio_query_wall_seconds"] for x in results), 6),
         "synthesis_wall_seconds": round(sum(x["synthesis_wall_seconds"] for x in results), 6),
@@ -261,7 +286,7 @@ def build_sample(
         "fit_ok_count": sum(x["fit_status"] == "ok" for x in results),
         "fit_fitted_count": sum(x["fit_status"] == "fitted" for x in results),
         "fit_ng_count": sum(x["fit_status"] == "ng" for x in results),
-        "units_per_second": round(succeeded / elapsed, 6) if elapsed > 0 else None,
+        "units_per_second": round(successful_speech_units / elapsed, 6) if elapsed > 0 else 0.0,
         "errors": errors, "results": results,
         "hardware": {"system": platform.system(), "machine": platform.machine(),
                      "python_version": platform.python_version()},
@@ -298,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     elapsed = time.perf_counter() - started
     sample = build_sample(args.job_id, args.workers, base_url, args.speaker_id,
-                          workload, results, elapsed)
+                          workload, results, elapsed, args.timeout)
     path = save_sample(paths.metrics_dir / "concurrency_benchmarks", sample)
     print(path)
     return 0 if sample["status"] == "completed" else 1
