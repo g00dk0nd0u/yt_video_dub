@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the local dubbing workflow with repo-friendly defaults."""
+"""Run the explicit optional/advanced AivisSpeech fixed-timeline pipeline."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from performance_metrics import StageTimer, build_benchmark, format_summary, wri
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run translated text rebuild, audio generation, dub-audio build, and optional video creation."
+        description="Run the explicit optional/advanced AivisSpeech fixed-timeline pipeline."
     )
     parser.add_argument(
         "--job-id",
@@ -58,12 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ffmpeg-bin",
         default="ffmpeg",
-        help='ffmpeg binary name or path for synced video build. Default: "ffmpeg"',
+        help='ffmpeg binary name or path for fixed-timeline video mux. Default: "ffmpeg"',
     )
     parser.add_argument(
         "--ffprobe-bin",
         default="ffprobe",
-        help='ffprobe binary name or path for synced video build. Default: "ffprobe"',
+        help='ffprobe binary name or path for fixed-timeline video mux. Default: "ffprobe"',
     )
     parser.add_argument(
         "--force-tts",
@@ -253,7 +253,6 @@ def main(argv: list[str] | None = None) -> int:
     print(format_summary(benchmark))
     print(f"Benchmark: {paths.benchmark_path}")
     print("Video build completed.")
-    print(f"Lightweight files under output/{args.job_id}/ (*.json, *.txt, *.srt) can be committed.")
     return 0
 
 
