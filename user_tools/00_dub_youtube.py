@@ -1,4 +1,4 @@
-2#!/usr/bin/env python3
+#!/usr/bin/env python3
 """One-command Codex CLI + Edge TTS YouTube dub route with hard quality gates."""
 
 from __future__ import annotations

@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 MODULE_PATH = Path(__file__).parents[1] / "user_tools" / "10_add_background_audio.py"
 SPEC = importlib.util.spec_from_file_location("background_audio_tool", MODULE_PATH)
@@ -32,12 +34,17 @@ def _job(tmp_path: Path) -> Path:
     return job
 
 
-def _fake_commands(monkeypatch, calls: list[list[str]]):
+def _fake_commands(monkeypatch, calls: list[list[str]], *, audio_format=None):
     monkeypatch.setattr(background.shutil, "which", lambda value: f"/bin/{value}")
+    audio_format = audio_format or {"codec_name": "aac", "sample_rate": "48000", "channels": 2}
 
     def fake_run(command, *, quiet=True):
         calls.append(command)
         if command[0].endswith("ffprobe"):
+            if "stream=codec_name,sample_rate,channels" in command:
+                return subprocess.CompletedProcess(
+                    command, 0, stdout=json.dumps({"streams": [audio_format]}), stderr=""
+                )
             return subprocess.CompletedProcess(command, 0, stdout="10.0\n", stderr="")
         if "--two-stems=vocals" in command:
             out = Path(command[command.index("-o") + 1]) / "htdemucs" / "source"
@@ -84,10 +91,36 @@ def test_mix_normalizes_inputs_and_outputs_48k_stereo_aac(tmp_path, monkeypatch)
     assert manifest["success"] is True
     assert manifest["cache_reused"] is False
     assert manifest["final_duration"] == 10.0
+    assert manifest["final_audio_format"] == {
+        "codec_name": "aac", "sample_rate": 48000, "channels": 2,
+    }
 
 
 def test_default_background_volume_is_minus_six_db(tmp_path):
     assert _args(tmp_path).background_db == -6.0
+
+
+@pytest.mark.parametrize("audio_format", [
+    {"codec_name": "aac", "sample_rate": "24000", "channels": 2},
+    {"codec_name": "aac", "sample_rate": "48000", "channels": 1},
+    {"codec_name": "mp3", "sample_rate": "48000", "channels": 2},
+])
+def test_invalid_final_audio_format_preserves_existing_output(
+        tmp_path, monkeypatch, audio_format):
+    job = _job(tmp_path)
+    output = job / "dubbed_video_with_bg.mp4"
+    output.write_bytes(b"previous-success")
+    calls = []
+    _fake_commands(monkeypatch, calls, audio_format=audio_format)
+
+    with pytest.raises(background.BackgroundAudioError, match="Invalid final audio format"):
+        background.add_background_audio(_args(tmp_path))
+
+    assert output.read_bytes() == b"previous-success"
+    assert not (job / ".dubbed_video_with_bg.tmp.mp4").exists()
+    assert (job / "dubbed_video.mp4").read_bytes() == b"standard-must-survive"
+    manifest = json.loads((job / "09_background" / "background_manifest.json").read_text())
+    assert manifest["success"] is False
 
 
 def test_cache_reused_when_only_background_volume_changes(tmp_path, monkeypatch):
