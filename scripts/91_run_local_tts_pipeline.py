@@ -220,7 +220,8 @@ def main(argv: list[str] | None = None) -> int:
             "mux",
             lambda: _run_step(
                 "Step 5: create fixed-timeline dubbed video", "08_mux_video.py",
-                common_job_args + ["--ffmpeg-bin", args.ffmpeg_bin],
+                common_job_args + ["--ffmpeg-bin", args.ffmpeg_bin,
+                                   "--ffprobe-bin", args.ffprobe_bin],
             ),
         )
     else:
