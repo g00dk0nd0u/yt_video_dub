@@ -15,11 +15,11 @@ sys.modules[SPEC.name] = background
 SPEC.loader.exec_module(background)
 
 
-def _args(tmp_path: Path, *, background_db: float = -12.0):
-    return background.build_parser().parse_args([
-        "--job-id", "job", "--output-dir", str(tmp_path), "--background-db",
-        str(background_db), "--quiet",
-    ])
+def _args(tmp_path: Path, *, background_db: float | None = None):
+    arguments = ["--job-id", "job", "--output-dir", str(tmp_path), "--quiet"]
+    if background_db is not None:
+        arguments.extend(["--background-db", str(background_db)])
+    return background.build_parser().parse_args(arguments)
 
 
 def _job(tmp_path: Path) -> Path:
@@ -51,7 +51,7 @@ def _fake_commands(monkeypatch, calls: list[list[str]]):
     monkeypatch.setattr(background, "_run", fake_run)
 
 
-def test_success_mix_excludes_vocals_and_protects_standard(tmp_path, monkeypatch):
+def test_mix_normalizes_inputs_and_outputs_48k_stereo_aac(tmp_path, monkeypatch):
     job = _job(tmp_path)
     calls = []
     _fake_commands(monkeypatch, calls)
@@ -66,13 +66,28 @@ def test_success_mix_excludes_vocals_and_protects_standard(tmp_path, monkeypatch
     assert str(job / "09_background" / "accompaniment.wav") in final
     assert str(job / "09_background" / "vocals.wav") not in final
     graph = final[final.index("-filter_complex") + 1]
-    assert "volume=-12dB" in graph
+    assert "volume=-6dB" in graph
+    assert graph.startswith(
+        "[1:a:0]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo[dub];"
+        "[2:a:0]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo,"
+    )
+    assert "[dub][background]amix=" in graph
+    assert graph.endswith(
+        "aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo[mixed]"
+    )
     assert "duration=10.000000" in graph
     assert final[final.index("-c:v") + 1] == "copy"
+    assert final[final.index("-c:a") + 1] == "aac"
+    assert final[final.index("-ar") + 1] == "48000"
+    assert final[final.index("-ac") + 1] == "2"
     manifest = json.loads((job / "09_background" / "background_manifest.json").read_text())
     assert manifest["success"] is True
     assert manifest["cache_reused"] is False
     assert manifest["final_duration"] == 10.0
+
+
+def test_default_background_volume_is_minus_six_db(tmp_path):
+    assert _args(tmp_path).background_db == -6.0
 
 
 def test_cache_reused_when_only_background_volume_changes(tmp_path, monkeypatch):
