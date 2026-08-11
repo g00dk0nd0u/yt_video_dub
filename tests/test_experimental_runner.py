@@ -78,6 +78,41 @@ def test_success_writes_diagnostics_and_zero_quality_summary(tmp_path):
     assert (tmp_path / "latest_run.txt").exists()
 
 
+@pytest.mark.parametrize("mux_diagnostic", [
+    {"source_video_codec": "av1", "output_video_codec": "h264",
+     "video_mode": "transcode", "compatibility_fallback_used": True},
+    {"source_video_codec": "h264", "output_video_codec": "h264",
+     "video_mode": "copy", "compatibility_fallback_used": False},
+])
+def test_mux_codec_decision_is_in_primary_diagnostics(tmp_path, mux_diagnostic):
+    module = _module()
+    job = tmp_path / "abc123"
+
+    def audio():
+        path = job / "07_audio/dub_audio_manifest.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({"warnings_count": 0, "items": []}))
+
+    stages = {name: (lambda: None) for name in
+              ("Prepare", "Translation", "Build", "Preflight")}
+    stages.update(TTS=lambda: {
+        "run_metrics": {"failed_units": 0, "fit_ng_count": 0}, "items": []},
+        Audio=audio, Mux=lambda: mux_diagnostic)
+
+    module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
+
+    summary = json.loads((job / "run_summary.json").read_text())
+    mux_result = next(stage for stage in summary["stages"]
+                      if stage["name"] == "Mux")["result"]
+    diagnostic = (tmp_path / "latest_run.txt").read_text()
+    for key, value in mux_diagnostic.items():
+        rendered = str(value).lower() if isinstance(value, bool) else str(value)
+        assert key in mux_result and rendered in mux_result.lower()
+        assert key in diagnostic and rendered in diagnostic.lower()
+    assert "'video_codec':" not in mux_result
+    assert "'video_codec':" not in diagnostic
+
+
 @pytest.mark.parametrize("acquisition,expected", [
     ({"source_reused": False,
       "attempted_strategies": ["yt-dlp-default", "youtube-android-vr"],

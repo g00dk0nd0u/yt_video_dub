@@ -149,9 +149,17 @@ def main(argv: list[str] | None = None) -> int:
     except subprocess.CalledProcessError as exc:
         stderr = (exc.stderr or "").strip()[-4000:] if args.quiet else ""
         detail = f" stderr: {stderr}" if stderr else ""
-        raise MuxVideoError(f"ffmpeg command failed with exit code {exc.returncode}.{detail}") from exc
+        raise MuxVideoError(
+            f"ffmpeg command failed with exit code {exc.returncode}.{detail} "
+            f"source_video_codec={source_video_codec} video_mode={video_mode}"
+        ) from exc
 
-    output_video_codec = _probe_video_stream(args.ffprobe_bin, output_video_path)["codec_name"]
+    try:
+        output_video_codec = _probe_video_stream(args.ffprobe_bin, output_video_path)["codec_name"]
+    except MuxVideoError as exc:
+        raise MuxVideoError(
+            f"{exc} source_video_codec={source_video_codec} video_mode={video_mode}"
+        ) from exc
     expected_output_codec = source_video_codec if video_mode == "copy" else "h264"
     if output_video_codec != expected_output_codec or output_video_codec not in COPY_COMPATIBLE_CODECS:
         raise MuxVideoError(
@@ -166,7 +174,6 @@ def main(argv: list[str] | None = None) -> int:
         "source_video_codec": source_video_codec,
         "output_video_codec": output_video_codec,
         "video_mode": video_mode,
-        "video_codec": video_mode,
         "compatibility_fallback_used": video_mode == "transcode",
         "original_audio_db": args.original_audio_db,
         "command": command,
