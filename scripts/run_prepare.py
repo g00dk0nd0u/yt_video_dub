@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import sys
 from pathlib import Path
 
 
@@ -52,7 +53,13 @@ def _load_script_module(filename: str):
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Failed to load script module: {script_path}")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        if sys.modules.get(module_name) is module:
+            del sys.modules[module_name]
+        raise
     return module
 
 
