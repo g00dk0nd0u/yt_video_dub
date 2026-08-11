@@ -35,6 +35,20 @@ python user_tools/02_make_video.py
 python user_tools/99_cleanup.py
 ```
 
+### Experimental: one-command route
+
+Codex CLI translation + Edge TTS を使う experimental route です。AivisSpeech の起動は不要です。
+既存の AivisSpeech route は stable path のままで、default は切り替えていません。
+
+```bash
+python user_tools/00_dub_youtube_experimental.py
+```
+
+YouTube URL を1回入力すると、isolated workspace での `codex exec` 翻訳、Edge TTS、
+固定 timeline 音声合成、stream-copy mux を順に実行し、
+`output/<video_id>/dubbed_video.mp4` を生成します。Codex CLI は事前にインストールし、
+ChatGPT account で sign in してください。音声は `--voice` で変更できます。
+
 普段ユーザーが触るのは `user_tools/` の3本だけです。
 
 1. `user_tools/01_new_youtube.py` を実行して YouTube URL を貼る
