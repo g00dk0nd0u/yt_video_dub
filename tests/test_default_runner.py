@@ -45,18 +45,18 @@ def test_failure_stops_downstream(failed, not_called):
     assert not_called not in calls
 
 
-def test_url_prompt_once(monkeypatch):
+def test_empty_url_exits_after_voice_and_url_prompts(monkeypatch):
     module = _module()
     prompts = []
     monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "")
     assert module.main([]) == 1
-    assert len(prompts) == 1
+    assert len(prompts) == 2
 
 
 @pytest.mark.parametrize("selections,expected", [
-    (["https://youtu.be/abc123", ""], "ja-JP-KeitaNeural"),
-    (["https://youtu.be/abc123", "2"], "ja-JP-NanamiNeural"),
-    (["https://youtu.be/abc123", "invalid", "1"], "ja-JP-KeitaNeural"),
+    (["", "https://youtu.be/abc123"], "ja-JP-KeitaNeural"),
+    (["2", "https://youtu.be/abc123"], "ja-JP-NanamiNeural"),
+    (["invalid", "1", "https://youtu.be/abc123"], "ja-JP-KeitaNeural"),
 ])
 def test_interactive_voice_selection(monkeypatch, tmp_path, selections, expected):
     module = _module()
@@ -68,6 +68,18 @@ def test_interactive_voice_selection(monkeypatch, tmp_path, selections, expected
 
     assert module.main([]) == 0
     assert used == [expected]
+
+
+def test_interactive_prompt_order_is_voice_then_url(monkeypatch, tmp_path):
+    module = _module()
+    prompts = []
+    answers = iter(["", "https://youtu.be/abc123"])
+    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or next(answers))
+    monkeypatch.setattr(module, "run", lambda _url, **_kwargs: tmp_path / "video.mp4")
+    monkeypatch.setattr(module.os, "chdir", lambda _path: None)
+
+    assert module.main([]) == 0
+    assert prompts == ["\n> ", "YouTube URLを貼ってください:\n\n> "]
 
 
 def test_explicit_voice_bypasses_selection(monkeypatch, tmp_path):
@@ -99,6 +111,21 @@ def test_spinner_is_disabled_for_non_tty(monkeypatch):
     with module._spinner("Translation", interval=0.001):
         time.sleep(0.005)
     assert output.getvalue() == ""
+
+
+def test_spinner_preserves_callback_stdout_without_collision(monkeypatch):
+    module = _module()
+    output = _TTYBuffer(True)
+    monkeypatch.setattr(module.sys, "stdout", output)
+
+    def callback():
+        time.sleep(0.005)
+        print("Created translation chunks")
+
+    module._call_stage("Translation", callback)
+    rendered = output.getvalue()
+    assert "Created translation chunks\n" in rendered
+    assert rendered.rfind("Translation") < rendered.index("Created translation chunks")
 
 
 @pytest.mark.parametrize("raises", [False, True])

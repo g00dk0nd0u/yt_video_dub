@@ -23,20 +23,58 @@ FEMALE_VOICE = "ja-JP-NanamiNeural"
 SPINNER_STAGES = {"Prepare", "Translation", "TTS", "Repair", "Mux"}
 
 
+class _SpinnerOutput:
+    """Forward stage output after stopping and clearing the active spinner."""
+
+    def __init__(self, stream, stop: threading.Event, lock: threading.Lock, clear):
+        self._stream = stream
+        self._stop = stop
+        self._lock = lock
+        self._clear = clear
+
+    def write(self, text):
+        with self._lock:
+            self._stop.set()
+            self._clear()
+            return self._stream.write(text)
+
+    def flush(self):
+        with self._lock:
+            return self._stream.flush()
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+
 @contextmanager
 def _spinner(label: str, *, interval: float = 1.2):
-    """Show a low-frequency, single-line spinner when stdout is interactive."""
-    enabled = bool(getattr(sys.stdout, "isatty", lambda: False)())
+    """Show a spinner until the stage emits output, avoiding mixed terminal lines."""
+    stream = sys.stdout
+    enabled = bool(getattr(stream, "isatty", lambda: False)())
     stop = threading.Event()
+    lock = threading.Lock()
     thread = None
+    visible = False
+
+    def clear() -> None:
+        nonlocal visible
+        if visible:
+            stream.write("\r" + " " * 20 + "\r")
+            stream.flush()
+            visible = False
 
     def animate() -> None:
+        nonlocal visible
         frames = ("◐", "◓", "◑", "◒")
         index = 0
         while not stop.is_set():
             try:
-                sys.stdout.write(f"\r{label:.<16} {frames[index % len(frames)]}")
-                sys.stdout.flush()
+                with lock:
+                    if stop.is_set():
+                        return
+                    stream.write(f"\r{label:.<16} {frames[index % len(frames)]}")
+                    stream.flush()
+                    visible = True
             except (OSError, ValueError):
                 return
             index += 1
@@ -45,15 +83,17 @@ def _spinner(label: str, *, interval: float = 1.2):
     if enabled:
         thread = threading.Thread(target=animate, name="dub-stage-spinner", daemon=True)
         thread.start()
+        sys.stdout = _SpinnerOutput(stream, stop, lock, clear)
     try:
         yield
     finally:
         if thread is not None:
+            sys.stdout = stream
             stop.set()
             thread.join()
             try:
-                sys.stdout.write("\r" + " " * 20 + "\r")
-                sys.stdout.flush()
+                with lock:
+                    clear()
             except (OSError, ValueError):
                 pass
 
@@ -322,12 +362,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--url"); parser.add_argument("--output-dir", default="output")
     parser.add_argument("--voice"); parser.add_argument("--max-repair-rounds", type=int, default=5)
     args = parser.parse_args(argv); os.chdir(REPO_ROOT)
-    url = args.url or input("YouTube URLを貼ってください:\n> ").strip()
+    voice = args.voice or (_select_voice() if args.url is None else MALE_VOICE)
+    url = args.url or input("YouTube URLを貼ってください:\n\n> ").strip()
     if not url: print("入力が空だったため終了しました。"); return 1
     if not _canonical_youtube_input(url)[1]:
         print("Prepare failed: YouTube URLから動画IDを取得できませんでした。")
         return 1
-    voice = args.voice or (_select_voice() if args.url is None else MALE_VOICE)
     try: video = run(url, output_dir=args.output_dir, voice=voice, max_repair_rounds=args.max_repair_rounds)
     except RuntimeError as exc: print(exc); print(f"Diagnostic: {Path(args.output_dir) / 'latest_run.txt'}"); return 1
     print(f"\nCompleted.\nVideo: {video.as_posix()}\nDiagnostic: {Path(args.output_dir) / 'latest_run.txt'}")
