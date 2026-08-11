@@ -1,147 +1,36 @@
 # Codex Runbook: YouTube Japanese Dub
 
-This document is the execution runbook for Codex.
-When the user gives a YouTube URL and asks to make a Japanese dubbed video, Codex should follow this document through translation handoff only.
+ユーザーが YouTube URL または video ID を渡して吹替を依頼した場合の default runbook です。
 
-## 1. Input
-
-- The user provides one YouTube URL.
-- Extract `video_id` from the URL.
-- Use `output/<video_id>/` as the job folder.
-- Do not continue into long-running local TTS or video generation in this URL-only workflow.
-
-## 2. Prepare
-
-Run:
+## Command
 
 ```bash
-python3 scripts/run_prepare.py \
-  --youtube-url "<URL>" \
-  --output-dir output
+python user_tools/00_dub_youtube.py --url "<YouTube URL or video ID>"
 ```
 
-## 3. Translate
+追加確認や manual translation handoff を挟まず、この一つの入口で次を実行します。
 
-Read:
+1. YouTube source/transcript preparation
+2. Codex CLI translation
+3. Edge TTS（resume/cache）
+4. fixed source timeline audio assembly
+5. Audio QA hard gate
+6. codec-compatible mux と final codec validation
+7. `output/<video_id>/dubbed_video.mp4`
 
-```text
-docs/translation_mode.md
-```
+Codex CLI は ChatGPT account sign-in を使います。paid translation API、API key、local LLM、AivisSpeech の起動は不要です。
 
-For every file:
+## Hard gates
 
-```text
-output/<video_id>/03_translation_input/chunk_*.txt
-```
+- video を slow/retime/trim/segment-concat しない。source timeline と duration を維持し、cumulative drift を発生させない。
+- TTS failed/NG が残れば Audio/Mux へ進まない。
+- Audio warnings/clipped/overflow が nonzero なら success を報告しない。
+- original English audio は default `-38 dB`。
+- source codec を ffprobe し、H.264 は stream-copy、それ以外（AV1/VP9/HEVC/unknown 等）は H.264 transcode。
+- output codec を再度 ffprobe して validation する。
 
-Create the matching file:
+## Report
 
-```text
-output/<video_id>/04_translation_output/chunk_*.txt
-```
+成功時は完成動画 path、失敗時は停止 stage を報告します。詳細の primary handoff は常に `output/latest_run.txt` です。同じ command を再実行すると Edge TTS cache を resume します。
 
-Rules:
-
-- Preserve JSONL format.
-- Preserve line count.
-- Preserve `segment_id` / `start` / `end`.
-- Translate only `text`.
-- Make Japanese natural and short enough for speech.
-
-## 4. Do Not Run Local Media Generation
-
-Build and validate the lightweight handoff artifacts first:
-
-```bash
-python3 scripts/04_build_translated_segments.py \
-  --job-id <video_id> \
-  --output-dir output
-
-python3 scripts/05_preflight_local_run.py \
-  --job-id <video_id> \
-  --output-dir output
-```
-
-If preflight is not `ready`, fix the named translation chunk and run both commands again.
-Do not report translation handoff complete until preflight is `ready`.
-
-Do not run:
-
-```bash
-python3 scripts/91_run_local_tts_pipeline.py \
-  --job-id <video_id> \
-  --output-dir output \
-  --base-url http://127.0.0.1:10101 \
-  --speaker-id 1937616896 \
-  --ffmpeg-bin ffmpeg \
-  --ffprobe-bin ffprobe \
-  --resume \
-  --mux-video
-```
-
-Do not run:
-
-- AivisSpeech TTS generation
-- WAV generation
-- `synced_segments` generation
-- `dubbed_video_synced.mp4` generation
-- Long ffmpeg processing
-
-## 5. Verify
-
-- `05_segments/translated_segments.json` exists.
-- `05_segments/translated_segments.srt` exists when the translation build step produces it.
-- `05_segments/local_run_preflight.json` exists and has `status: ready`.
-- `04_translation_output/chunk_*.txt` exists for every input chunk.
-
-## 6. Git
-
-Commit only lightweight files:
-
-- `output/<video_id>/**/*.json`
-- `output/<video_id>/**/*.txt`
-- `output/<video_id>/**/*.srt`
-
-Do not commit:
-
-- `mp4`
-- `wav`
-- `mov`
-- `m4a`
-- `aac`
-- `08_synced_video/synced_segments/*.mp4`
-- `08_synced_video/synced_segments/*.wav`
-
-## 7. Push
-
-Commit and push only the lightweight translation artifacts.
-
-## 8. Report
-
-Report:
-
-- `video_id`
-- chunk count
-- created translation output paths
-- committed lightweight file types
-- the exact local command the user should run next
-
-Local interactive command:
-
-```bash
-python user_tools/02_make_video.py
-```
-
-Local non-interactive command:
-
-```bash
-python3 scripts/91_run_local_tts_pipeline.py \
-  --job-id <video_id> \
-  --output-dir output \
-  --base-url http://127.0.0.1:10101 \
-  --speaker-id 1937616896 \
-  --ffmpeg-bin ffmpeg \
-  --ffprobe-bin ffprobe \
-  --resume \
-  --mux-video
-```
+`output/**` はすべて local runtime/cache で Git ignored です。`output/.gitkeep` 以外の生成物を commit/push しません。
