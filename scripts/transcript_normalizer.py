@@ -77,10 +77,14 @@ def normalize_segments(
         first_spoken_word = True
         for word_index, word in enumerate(words):
             raw_word_index = removed_prefix + word_index
-            # YouTube uses a standalone ``>>`` token as a speaker/cue marker.
-            # Match the whole token so technical text such as ``x > 10``,
-            # ``A >= B``, and ``foo -> bar`` remains untouched.
-            if word.casefold() in NON_SPEECH_CUES or word in BOUNDARY_CUE_TOKENS:
+            # YouTube uses ``>>`` at a caption boundary as a speaker marker.
+            # Preserve an interior token because it may be a shift operator or
+            # shell append operator (for example ``x >> 2`` or ``foo >> log``).
+            boundary_cue = (
+                word in BOUNDARY_CUE_TOKENS
+                and raw_word_index in {0, len(raw_words) - 1}
+            )
+            if word.casefold() in NON_SPEECH_CUES or boundary_cue:
                 continue
             stream.append(
                 {
