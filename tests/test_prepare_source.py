@@ -91,6 +91,26 @@ def test_two_403_failures_are_bounded_and_diagnostic_is_sanitized(tmp_path, monk
     assert "PO-token-capable" in message
 
 
+def test_primary_403_is_preserved_when_fallback_has_non_403_failure(tmp_path, monkeypatch):
+    module = _module()
+
+    def fail(url, source_dir, strategy):
+        if not strategy.fallback:
+            raise module.SourceAcquisitionError("download", "HTTP Error 403: Forbidden",
+                                                strategy=strategy.name, http_403=True)
+        raise module.SourceAcquisitionError("download", "connection reset",
+                                            strategy=strategy.name, http_403=False)
+
+    monkeypatch.setattr(module, "_download_with_strategy", fail)
+    with pytest.raises(module.SourceAcquisitionError) as caught:
+        module._acquire_youtube_source("url", tmp_path)
+    message = str(caught.value)
+    assert "http_403=true" in message
+    assert "yt-dlp-default:download:http_403=true" in message
+    assert "youtube-android-vr:download:http_403=false" in message
+    assert "newer/current yt-dlp" in message and "PO-token-capable" in message
+
+
 @pytest.mark.parametrize("stage", ["metadata", "normalization"])
 def test_nonretryable_errors_do_not_create_retry_storm(tmp_path, monkeypatch, stage):
     module = _module()

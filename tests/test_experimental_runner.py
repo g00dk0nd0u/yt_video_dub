@@ -78,6 +78,44 @@ def test_success_writes_diagnostics_and_zero_quality_summary(tmp_path):
     assert (tmp_path / "latest_run.txt").exists()
 
 
+@pytest.mark.parametrize("acquisition,expected", [
+    ({"source_reused": False,
+      "attempted_strategies": ["yt-dlp-default", "youtube-android-vr"],
+      "strategy_failures": ["yt-dlp-default:download:http_403=true"],
+      "successful_strategy": "youtube-android-vr"},
+     ["attempted_strategies=yt-dlp-default,youtube-android-vr",
+      "successful_strategy=youtube-android-vr"]),
+    ({"source_reused": True, "attempted_strategies": [], "strategy_failures": []},
+     ["source_reused=true"]),
+])
+def test_success_diagnostic_has_compact_acquisition_summary(tmp_path, acquisition, expected):
+    module = _module()
+    job = tmp_path / "abc123"
+
+    def prepare():
+        path = job / "01_source/job.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({"acquisition": acquisition}))
+
+    def audio():
+        path = job / "07_audio/dub_audio_manifest.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({"warnings_count": 0, "items": []}))
+
+    stages = {name: (lambda: None) for name in
+              ("Translation", "Build", "Preflight", "Mux")}
+    stages.update(Prepare=prepare, TTS=lambda: {
+        "run_metrics": {"failed_units": 0, "fit_ng_count": 0}, "items": []}, Audio=audio)
+    module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
+    diagnostic = (tmp_path / "latest_run.txt").read_text()
+    summary = json.loads((job / "run_summary.json").read_text())
+    prepare_result = next(stage for stage in summary["stages"]
+                          if stage["name"] == "Prepare")["result"]
+    for item in expected:
+        assert item in diagnostic
+        assert item in prepare_result
+
+
 def test_ng_fails_before_audio_and_finalizes_diagnostic(tmp_path):
     module = _module()
     calls = []
