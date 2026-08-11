@@ -1,5 +1,8 @@
 import importlib.util
 import inspect
+import io
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -48,6 +51,75 @@ def test_url_prompt_once(monkeypatch):
     monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "")
     assert module.main([]) == 1
     assert len(prompts) == 1
+
+
+@pytest.mark.parametrize("selections,expected", [
+    (["https://youtu.be/abc123", ""], "ja-JP-KeitaNeural"),
+    (["https://youtu.be/abc123", "2"], "ja-JP-NanamiNeural"),
+    (["https://youtu.be/abc123", "invalid", "1"], "ja-JP-KeitaNeural"),
+])
+def test_interactive_voice_selection(monkeypatch, tmp_path, selections, expected):
+    module = _module()
+    answers = iter(selections)
+    used = []
+    monkeypatch.setattr("builtins.input", lambda _prompt: next(answers))
+    monkeypatch.setattr(module, "run", lambda _url, **kwargs: used.append(kwargs["voice"]) or tmp_path / "video.mp4")
+    monkeypatch.setattr(module.os, "chdir", lambda _path: None)
+
+    assert module.main([]) == 0
+    assert used == [expected]
+
+
+def test_explicit_voice_bypasses_selection(monkeypatch, tmp_path):
+    module = _module()
+    prompts = []
+    used = []
+    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "https://youtu.be/abc123")
+    monkeypatch.setattr(module, "run", lambda _url, **kwargs: used.append(kwargs["voice"]) or tmp_path / "video.mp4")
+    monkeypatch.setattr(module.os, "chdir", lambda _path: None)
+
+    assert module.main(["--voice", "custom-voice"]) == 0
+    assert used == ["custom-voice"]
+    assert len(prompts) == 1
+
+
+class _TTYBuffer(io.StringIO):
+    def __init__(self, is_tty):
+        super().__init__()
+        self._is_tty = is_tty
+
+    def isatty(self):
+        return self._is_tty
+
+
+def test_spinner_is_disabled_for_non_tty(monkeypatch):
+    module = _module()
+    output = _TTYBuffer(False)
+    monkeypatch.setattr(module.sys, "stdout", output)
+    with module._spinner("Translation", interval=0.001):
+        time.sleep(0.005)
+    assert output.getvalue() == ""
+
+
+@pytest.mark.parametrize("raises", [False, True])
+def test_spinner_cleanup_on_completion_and_exception(monkeypatch, raises):
+    module = _module()
+    output = _TTYBuffer(True)
+    monkeypatch.setattr(module.sys, "stdout", output)
+
+    def exercise():
+        with module._spinner("Translation", interval=0.001):
+            time.sleep(0.005)
+            if raises:
+                raise RuntimeError("boom")
+
+    if raises:
+        with pytest.raises(RuntimeError, match="boom"):
+            exercise()
+    else:
+        exercise()
+    assert not any(thread.name == "dub-stage-spinner" for thread in threading.enumerate())
+    assert "Translation" in output.getvalue()
 
 
 def test_default_max_repair_rounds_is_five():
