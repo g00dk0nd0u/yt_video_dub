@@ -144,6 +144,10 @@ class JobPaths:
         return self.job_dir / "dubbed_video.mp4"
 
     @property
+    def run_summary_path(self) -> Path:
+        return self.job_dir / "run_summary.json"
+
+    @property
     def dubbed_video_simple_path(self) -> Path:
         return self.simple_mux_dir / "dubbed_video.mp4"
 
