@@ -135,7 +135,7 @@ def _mux_diagnostics(manifest: dict) -> dict:
 
 
 def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural",
-        max_repair_rounds: int = 2, stages: dict | None = None) -> Path:
+        max_repair_rounds: int = 5, stages: dict | None = None) -> Path:
     from path_layout import build_job_paths
     from run_diagnostics import RunReport
 
@@ -260,7 +260,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url"); parser.add_argument("--output-dir", default="output")
-    parser.add_argument("--voice", default="ja-JP-KeitaNeural"); parser.add_argument("--max-repair-rounds", type=int, default=2)
+    parser.add_argument("--voice", default="ja-JP-KeitaNeural"); parser.add_argument("--max-repair-rounds", type=int, default=5)
     args = parser.parse_args(argv); os.chdir(REPO_ROOT)
     url = args.url or input("YouTube URLを貼ってください:\n> ").strip()
     if not url: print("入力が空だったため終了しました。"); return 1

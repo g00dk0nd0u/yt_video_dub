@@ -1,4 +1,5 @@
 import importlib.util
+import inspect
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,10 @@ def test_url_prompt_once(monkeypatch):
     monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "")
     assert module.main([]) == 1
     assert len(prompts) == 1
+
+
+def test_default_max_repair_rounds_is_five():
+    assert inspect.signature(_module().run).parameters["max_repair_rounds"].default == 5
 
 
 def test_invalid_url_does_not_advertise_stale_diagnostic(tmp_path, capsys):
@@ -202,17 +207,52 @@ def test_closed_repair_loop_reaches_zero_clip_success(tmp_path):
     assert "items" not in next(x for x in summary["stages"] if x["name"] == "TTS")["result"]
 
 
-def test_remaining_ng_after_limit_never_muxes(tmp_path):
+def test_remaining_ng_after_five_rounds_never_muxes(tmp_path):
     module = _module()
     calls = []
     ng = {"run_metrics": {"failed_units": 0, "fit_ng_count": 1},
           "items": [{"segment_id": "x", "fit_status": "ng"}]}
     stages = {name: (lambda name=name: calls.append(name)) for name in
               ("Prepare", "Translation", "Build", "Preflight", "Audio", "Mux")}
-    stages.update(TTS=lambda: ng, Repair=lambda: [])
-    with pytest.raises(RuntimeError, match="after 2 repair rounds"):
+    stages.update(TTS=lambda: ng, Repair=lambda: calls.append("Repair") or [])
+    with pytest.raises(RuntimeError, match="after 5 repair rounds"):
         module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
+    assert calls.count("Repair") == 5
     assert "Audio" not in calls and "Mux" not in calls
+
+
+@pytest.mark.parametrize("success_round", [3, 4, 5])
+def test_repair_can_succeed_in_rounds_three_through_five(tmp_path, success_round):
+    module = _module()
+    calls = []
+    tts_call = 0
+
+    def tts():
+        nonlocal tts_call
+        duration = 2.0 - (0.1 * tts_call)
+        fit_status = "ok" if tts_call == success_round else "ng"
+        tts_call += 1
+        return {"run_metrics": {"failed_units": 0,
+                                 "fit_ng_count": int(fit_status == "ng")},
+                "items": [{"segment_id": "x", "fit_status": fit_status,
+                           "final_tts_duration": duration}]}
+
+    def audio():
+        calls.append("Audio")
+        path = tmp_path / "abc123/07_audio/dub_audio_manifest.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({"warnings_count": 0, "items": []}))
+
+    stages = {name: (lambda name=name: calls.append(name)) for name in
+              ("Prepare", "Translation", "Build", "Preflight", "Mux")}
+    stages.update(TTS=tts, Repair=lambda: calls.append("Repair") or [{
+        "segment_id": "x", "text_before": "long", "text_after": "short"}],
+        Audio=audio)
+
+    module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
+
+    assert calls.count("Repair") == success_round
+    assert "Audio" in calls and "Mux" in calls
 
 
 def test_unchanged_repair_stops_without_second_codex_call(tmp_path):
@@ -228,6 +268,27 @@ def test_unchanged_repair_stops_without_second_codex_call(tmp_path):
         module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
     assert calls.count("Repair") == 1
     assert "no_progress_reason" in (tmp_path / "latest_run.txt").read_text()
+    assert "Audio" not in calls and "Mux" not in calls
+
+
+def test_duration_no_progress_stops_before_five_rounds(tmp_path):
+    module = _module(); calls = []
+    durations = iter([2.0, 1.995])
+
+    def tts():
+        return {"run_metrics": {"failed_units": 0, "fit_ng_count": 1}, "items": [
+            {"segment_id": "x", "fit_status": "ng",
+             "final_tts_duration": next(durations)}]}
+
+    stages = {name: (lambda name=name: calls.append(name)) for name in
+              ("Prepare", "Translation", "Build", "Preflight", "Audio", "Mux")}
+    stages.update(TTS=tts, Repair=lambda: calls.append("Repair") or [{
+        "segment_id": "x", "text_before": "long", "text_after": "short"}])
+
+    with pytest.raises(RuntimeError, match="repair made no progress"):
+        module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
+
+    assert calls.count("Repair") == 1
     assert "Audio" not in calls and "Mux" not in calls
 
 
