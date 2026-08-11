@@ -84,7 +84,8 @@ def _stage_result(name: str, result: object) -> dict | str:
 def _quality_problem(item: dict) -> dict:
     return {key: item.get(key) for key in (
         "segment_id", "start", "end", "available_duration", "text", "raw_tts_duration",
-        "final_tts_duration", "rate", "fit_status")}
+        "original_converted_duration", "removed_leading_silence", "removed_trailing_silence",
+        "final_speech_duration", "final_tts_duration", "rate", "fit_status", "coalesced")}
 
 
 def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural",
@@ -135,6 +136,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
         report.data["tts"] = metrics
         report.data["quality_problems"] = [_quality_problem(item) for item in problems]
         round_number = 0
+        stopped_for_no_progress = []
         while problems and round_number < max_repair_rounds:
             round_number += 1
             current, started = f"Repair #{round_number}", monotonic()
@@ -148,20 +150,37 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
             manifest = tts_result if isinstance(tts_result, dict) else _json(paths.tts_manifest_path)
             metrics, problems = _tts_quality(manifest)
             after = {x["segment_id"]: x for x in manifest.get("items", [])}
+            no_progress = []
             for change in changes or []:
                 old, new = before.get(change["segment_id"], {}), after.get(change["segment_id"], {})
-                report.data["repairs"].append({"repair_round": round_number, **change,
+                reason = None
+                if change.get("text_after") == change.get("text_before"):
+                    reason = "repaired text was unchanged"
+                elif (new.get("fit_status") == "ng" and
+                      float(old.get("final_tts_duration") or 0) - float(new.get("final_tts_duration") or 0) < 0.01):
+                    reason = "speech duration improved by less than 0.01s"
+                entry = {"repair_round": round_number, **change,
                     "duration_before": old.get("final_tts_duration"), "duration_after": new.get("final_tts_duration"),
-                    "final_fit_status": new.get("fit_status")})
+                    "final_fit_status": new.get("fit_status")}
+                if reason:
+                    entry["no_progress_reason"] = reason
+                    no_progress.append(change["segment_id"])
+                report.data["repairs"].append(entry)
             report.stage(current, "OK", monotonic() - started, f"remaining_ng={len(problems)}")
             print(f"{current:.<16} OK  remaining NG={len(problems)}")
             last_success = current
+            if no_progress:
+                stopped_for_no_progress = no_progress
+                break
         report.data["tts"] = metrics
         # Keep the original failure evidence even when repair succeeds.
         known = {x.get("segment_id") for x in report.data["quality_problems"]}
         report.data["quality_problems"].extend(_quality_problem(x) for x in problems
                                                 if x.get("segment_id") not in known)
         if problems:
+            if stopped_for_no_progress:
+                raise RuntimeError("fit_ng_count=" + str(len(problems)) +
+                                   "; repair made no progress for " + ", ".join(stopped_for_no_progress))
             raise RuntimeError(f"fit_ng_count={len(problems)} after {max_repair_rounds} repair rounds")
         for name in ("Audio",):
             current, started = name, monotonic(); result = stages[name]()

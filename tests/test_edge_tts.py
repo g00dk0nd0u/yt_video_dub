@@ -1,7 +1,17 @@
 import asyncio
 import json
+import math
+import wave
+from array import array
 
+import pytest
 from providers.tts.edge import EdgeTTSError
+
+
+def _silence(duration):
+    return lambda _: {"original_converted_duration": duration,
+                      "removed_leading_silence": 0, "removed_trailing_silence": 0,
+                      "final_speech_duration": duration}
 
 
 def test_edge_provider_default_alternate_and_error(tmp_path):
@@ -39,6 +49,7 @@ def test_edge_duration_fitting_and_provider_cache(tmp_path, load_script):
     ]
     (job / "translated_segments.json").write_text(json.dumps({"segments": segments}))
     durations = iter([0.8, 1.1, 0.95, 1.3])
+    measured = {}
     rates = []
     class Provider:
         def synthesize(self, text, output, rate_percent=0):
@@ -46,9 +57,13 @@ def test_edge_duration_fitting_and_provider_cache(tmp_path, load_script):
             output.write_bytes(b"mp3")
     def convert(source, target, ffmpeg):
         target.write_bytes(b"wav")
+    def clean(target):
+        duration = next(durations); measured[target] = duration
+        return {"original_converted_duration": duration, "removed_leading_silence": 0,
+                "removed_trailing_silence": 0, "final_speech_duration": duration}
     manifest = module.generate_job(
         job_id="job", output_dir=tmp_path, provider=Provider(), converter=convert,
-        measure=lambda _: next(durations))
+        measure=lambda path: measured[path], silence_handler=clean)
     assert [item["fit_status"] for item in manifest["items"]] == ["ok", "fitted", "ng"]
     assert manifest["items"][2]["translation_retry_required"] is True
     assert rates == [0, 0, 11, 0]
@@ -56,7 +71,7 @@ def test_edge_duration_fitting_and_provider_cache(tmp_path, load_script):
                   (tmp_path / "job/05_segments/duration_retry_required.jsonl").read_text().splitlines()]
     assert [row["segment_id"] for row in retry_rows] == ["ng"]
     assert set(retry_rows[0]) == {"segment_id", "start", "end", "duration", "current_text",
-                                  "raw_tts_duration", "required_speed", "target_chars"}
+                                  "raw_tts_duration", "required_speed", "target_chars", "coalesced"}
     assert not module._cache_matches(
         {"tts_provider": "aivis", "voice": "1"}, manifest["items"][0], segments[0],
         "ja-JP-KeitaNeural", tmp_path / "missing.wav")
@@ -90,7 +105,8 @@ def test_edge_partial_failure_continues_and_resume_repairs_only_failure(tmp_path
         target.write_bytes(b"wav")
 
     first = module.generate_job(job_id="job", output_dir=tmp_path, provider=FirstProvider(),
-                                converter=convert, measure=lambda _: 0.8)
+                                converter=convert, measure=lambda _: 0.8,
+                                silence_handler=_silence(.8))
     assert first_calls == ["one", "two", "three"]
     assert len(first["items"]) == 3
     assert first["items"][1]["status"] == "failed"
@@ -105,7 +121,8 @@ def test_edge_partial_failure_continues_and_resume_repairs_only_failure(tmp_path
             output.write_bytes(b"mp3")
 
     second = module.generate_job(job_id="job", output_dir=tmp_path, provider=SecondProvider(),
-                                 converter=convert, measure=lambda _: 0.8, resume=True)
+                                 converter=convert, measure=lambda _: 0.8, resume=True,
+                                 silence_handler=_silence(.8))
     assert second_calls == ["two"]
     assert [item["status"] for item in second["items"]] == ["reused", "generated", "reused"]
     assert second["run_metrics"]["failed_units"] == 0
@@ -147,11 +164,53 @@ def test_edge_resume_reuses_unchanged_and_regenerates_changed_text(tmp_path, loa
     def convert(source, target, ffmpeg): target.write_bytes(b"wav")
     first = Provider()
     module.generate_job(job_id="job", output_dir=tmp_path, provider=first,
-                        converter=convert, measure=lambda _: .5)
+                        converter=convert, measure=lambda _: .5, silence_handler=_silence(.5))
     segments[1]["text"] = "changed"
     (tmp_path / "job/05_segments/translated_segments.json").write_text(json.dumps({"segments": segments}))
     second = Provider()
     result = module.generate_job(job_id="job", output_dir=tmp_path, provider=second,
-                                 converter=convert, measure=lambda _: .5, resume=True)
+                                 converter=convert, measure=lambda _: .5, resume=True,
+                                 silence_handler=_silence(.5))
     assert second.calls == ["changed"]
     assert [x["status"] for x in result["items"]] == ["reused", "generated", "reused"]
+
+
+def test_edge_conservative_boundary_silence_cleanup_preserves_voice(tmp_path, load_script):
+    module = load_script("06_generate_edge_tts_segments.py")
+    path, rate = tmp_path / "edge.wav", 24000
+    leading = [0] * int(rate * .12)
+    voiced = [round(5000 * math.sin(index / 8)) for index in range(int(rate * .2))]
+    tail = [80, -80] * int(rate * .01)
+    trailing = [0] * int(rate * .12)
+    samples = array("h", leading + voiced + tail + trailing)
+    with wave.open(str(path), "wb") as writer:
+        writer.setparams((1, 2, rate, 0, "NONE", "not compressed"))
+        writer.writeframes(samples.tobytes())
+    result = module._trim_edge_silence(path)
+    assert result["removed_leading_silence"] == pytest.approx(.08, abs=1 / rate)
+    assert result["removed_trailing_silence"] == pytest.approx(.10, abs=1 / rate)
+    assert module._measure_wav(path) == pytest.approx(result["final_speech_duration"])
+    with wave.open(str(path), "rb") as reader:
+        cleaned = array("h", reader.readframes(reader.getnframes()))
+    assert max(cleaned) == max(samples)
+    assert 80 in cleaned[-int(rate * .04):]
+
+
+def test_edge_fit_uses_exact_cleaned_downstream_wav(tmp_path, load_script):
+    module = load_script("06_generate_edge_tts_segments.py")
+    directory = tmp_path / "job/05_segments"; directory.mkdir(parents=True)
+    (directory / "translated_segments.json").write_text(json.dumps({"segments": [
+        {"segment_id": "one", "start": 0, "end": 1, "text": "声"}]}))
+    class Provider:
+        def synthesize(self, text, output, rate_percent=0): output.write_bytes(b"mp3")
+    def convert(source, target, ffmpeg):
+        with wave.open(str(target), "wb") as writer:
+            writer.setparams((1, 2, 24000, 0, "NONE", "not compressed"))
+            writer.writeframes(array("h", [0] * 4800 + [4000] * 19200).tobytes())
+    manifest = module.generate_job(job_id="job", output_dir=tmp_path, provider=Provider(),
+                                   converter=convert)
+    item = manifest["items"][0]
+    final_path = tmp_path / "job" / item["wav_path"]
+    assert item["fit_status"] == "ok"
+    assert item["original_converted_duration"] == 1.0
+    assert item["final_tts_duration"] == pytest.approx(module._measure_wav(final_path))
