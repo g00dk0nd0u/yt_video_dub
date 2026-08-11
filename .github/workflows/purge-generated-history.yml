@@ -1,0 +1,45 @@
+name: Purge generated history
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  purge:
+    if: github.event.head_commit.message == 'chore: purge generated history'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rewrite repository history
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet git-filter-repo
+          git clone --bare "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" repo.git
+          cd repo.git
+          git filter-repo --force \
+            --path output/ \
+            --path review_outputs/ \
+            --invert-paths
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          git push origin --force --all
+          git push origin --force --tags
+
+      - name: Remove one-shot workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" clean
+          cd clean
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/purge-generated-history.yml
+          git add -A
+          git commit -m "chore: remove one-shot history purge workflow"
+          git push origin main
