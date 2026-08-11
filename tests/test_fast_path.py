@@ -53,11 +53,9 @@ def test_fast_mux_command_keeps_video_timeline(load_script, tmp_path):
     assert "-shortest" not in command
 
 
-@pytest.mark.parametrize("source_codec", ["h264", "hevc"])
-def test_compatible_video_codec_keeps_copy_fast_path(
-    tmp_path, load_script, monkeypatch, source_codec
-):
+def test_h264_video_codec_keeps_copy_fast_path(tmp_path, load_script, monkeypatch):
     module = load_script("08_mux_video.py")
+    source_codec = "h264"
     job = tmp_path / "job"
     (job / "01_source").mkdir(parents=True)
     (job / "07_audio").mkdir()
@@ -79,7 +77,7 @@ def test_compatible_video_codec_keeps_copy_fast_path(
     assert "video_codec" not in manifest
 
 
-@pytest.mark.parametrize("source_codec", ["av1", "vp9"])
+@pytest.mark.parametrize("source_codec", ["av1", "vp9", "hevc", "unknown"])
 def test_unsafe_video_codec_transcodes_and_validates_h264(
     tmp_path, load_script, monkeypatch, source_codec
 ):

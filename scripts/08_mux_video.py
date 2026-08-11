@@ -17,7 +17,7 @@ class MuxVideoError(RuntimeError):
     """Raised when video muxing fails."""
 
 
-COPY_COMPATIBLE_CODECS = {"h264", "hevc"}
+COPY_COMPATIBLE_CODECS = {"h264"}
 H264_CRF = "20"
 H264_PRESET = "medium"
 
