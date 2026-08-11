@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import shlex
@@ -32,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--job-id", help="Job identifier under output/<job_id>/.")
     parser.add_argument("--output-dir", default=str(REPO_ROOT / "output"))
     parser.add_argument("--background-db", type=float, default=DEFAULT_BACKGROUND_DB)
-    parser.add_argument("--demucs-bin", default="demucs", help="External Demucs executable.")
+    parser.add_argument("--demucs-bin", help="External Demucs executable.")
     parser.add_argument("--demucs-python", help="Optional separate Python used as: PYTHON -m demucs.")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--ffmpeg-bin", default="ffmpeg")
@@ -144,7 +145,14 @@ def _demucs_prefix(args: argparse.Namespace) -> list[str]:
         if not Path(args.demucs_python).is_file() and not shutil.which(args.demucs_python):
             raise BackgroundAudioError("Background separation tool is not installed.")
         return [args.demucs_python, "-m", "demucs"]
-    resolved = shutil.which(args.demucs_bin)
+    if args.demucs_bin:
+        resolved = shutil.which(args.demucs_bin)
+        if not resolved:
+            raise BackgroundAudioError("Background separation tool is not installed.")
+        return [resolved]
+    if importlib.util.find_spec("demucs") is not None:
+        return [sys.executable, "-m", "demucs"]
+    resolved = shutil.which("demucs")
     if not resolved:
         raise BackgroundAudioError("Background separation tool is not installed.")
     return [resolved]
