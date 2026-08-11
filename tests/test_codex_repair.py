@@ -45,6 +45,24 @@ def test_repair_translations_changes_only_selected_text(tmp_path):
     assert [x["segment_id"] for x in changes] == ["repair"]
 
 
+def test_repair_prompt_prioritizes_spoken_duration_and_japanese_shortening(tmp_path):
+    source, output, manifest, retry, rules = _job(tmp_path)
+    commands = []
+    runner = _runner()
+
+    def capture(command, **kwargs):
+        commands.append(command)
+        return runner(command, **kwargs)
+
+    repair_translations(retry_path=retry, input_dir=source, output_dir=output,
+        manifest_path=manifest, rules_path=rules, codex_bin="python", runner=capture)
+
+    prompt = commands[0][-1]
+    assert "strict maximum" in prompt
+    assert "reduce spoken duration" in prompt
+    assert "よね" in prompt
+
+
 @pytest.mark.parametrize("field", ["segment_id", "start", "end", "duration"])
 def test_repair_rejects_immutable_metadata_changes(tmp_path, field):
     source, output, manifest, retry, rules = _job(tmp_path)
