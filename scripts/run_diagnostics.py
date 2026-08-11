@@ -16,7 +16,8 @@ _TEMP = re.compile(r"(?:/private)?/tmp/(?:yt_video_dub_(?:translation|repair|edg
 
 def safe_text(value: object) -> str:
     text = _SECRET.sub("[REDACTED]", str(value))
-    return _TEMP.sub("[temporary workspace]", text).replace("\n", " ").strip()
+    text = _TEMP.sub("[temporary workspace]", text).replace("\n", " ").strip()
+    return text if len(text) <= 8000 else text[:8000] + "… [truncated]"
 
 
 def _command_version(command: list[str]) -> str:
