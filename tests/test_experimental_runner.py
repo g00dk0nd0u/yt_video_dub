@@ -204,3 +204,32 @@ def test_tts_stage_summary_does_not_duplicate_segment_items():
                         "reused_units": 0, "failed_units": 0, "fit_ng_count": 0}})
     assert result == {"provider": "edge", "selected_units": 1000, "generated_units": 1000,
                       "reused_units": 0, "failed_units": 0, "fit_ng_count": 0}
+
+
+def test_failed_tts_details_are_diagnostic_and_stop_audio_mux(tmp_path):
+    module = _module()
+    calls = []
+    stages = {name: (lambda name=name: calls.append(name)) for name in
+              ("Prepare", "Translation", "Build", "Preflight", "Audio", "Mux")}
+    stages["TTS"] = lambda: {
+        "run_metrics": {"failed_units": 1, "fit_ng_count": 0},
+        "items": [{"status": "failed", "segment_id": "utt_0002", "start": 7.86,
+                   "end": 9.97, "text": ">>", "error_type": "EdgeTTSError",
+                   "error_message": "Edge TTS request failed.", "coalesced": False,
+                   "provider_internal": "must not leak"}],
+    }
+
+    with pytest.raises(RuntimeError, match="TTS failed_units=1"):
+        module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
+
+    assert "Audio" not in calls and "Mux" not in calls
+    summary = json.loads((tmp_path / "abc123/run_summary.json").read_text())
+    assert summary["failed_tts_items"] == [{
+        "segment_id": "utt_0002", "start": 7.86, "end": 9.97, "text": ">>",
+        "error_type": "EdgeTTSError", "error_message": "Edge TTS request failed.",
+        "coalesced": False,
+    }]
+    diagnostic = (tmp_path / "latest_run.txt").read_text()
+    assert "FAILED TTS ITEMS" in diagnostic
+    assert "utt_0002" in diagnostic
+    assert "provider_internal" not in diagnostic

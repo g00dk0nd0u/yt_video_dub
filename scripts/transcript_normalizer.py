@@ -9,6 +9,7 @@ from typing import Any
 TOKEN_RE = re.compile(r"\S+")
 SENTENCE_END_RE = re.compile(r"[.!?][\]\)\"']*$")
 NON_SPEECH_CUES = {"[music]", "[applause]", "[laughter]"}
+BOUNDARY_CUE_TOKENS = {">>"}
 MIN_TTS_UNIT_SECONDS = 0.75
 
 
@@ -76,7 +77,10 @@ def normalize_segments(
         first_spoken_word = True
         for word_index, word in enumerate(words):
             raw_word_index = removed_prefix + word_index
-            if word.casefold() in NON_SPEECH_CUES:
+            # YouTube uses a standalone ``>>`` token as a speaker/cue marker.
+            # Match the whole token so technical text such as ``x > 10``,
+            # ``A >= B``, and ``foo -> bar`` remains untouched.
+            if word.casefold() in NON_SPEECH_CUES or word in BOUNDARY_CUE_TOKENS:
                 continue
             stream.append(
                 {

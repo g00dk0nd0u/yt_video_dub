@@ -101,6 +101,20 @@ def _quality_problem(item: dict) -> dict:
         "final_speech_duration", "final_tts_duration", "rate", "fit_status", "coalesced")}
 
 
+def _failed_tts_item(item: dict) -> dict:
+    """Keep only the bounded, provider-safe fields needed to diagnose a failure."""
+    return {key: item.get(key) for key in (
+        "segment_id", "start", "end", "text", "error_type", "error_message", "coalesced")}
+
+
+def _record_tts_diagnostics(report, manifest: dict) -> None:
+    report.data["tts"] = manifest.get("run_metrics", {})
+    report.data["failed_tts_items"] = [
+        _failed_tts_item(item) for item in manifest.get("items", [])
+        if item.get("status") == "failed"
+    ]
+
+
 def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural",
         max_repair_rounds: int = 2, stages: dict | None = None) -> Path:
     from path_layout import build_job_paths
@@ -147,8 +161,8 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
             if name == "Translation" and isinstance(result, dict):
                 report.data["translation"] = {key: result[key] for key in ("chunk_count", "segment_count") if key in result}
         manifest = result if isinstance(result, dict) and "run_metrics" in result else (_json(paths.tts_manifest_path) if paths.tts_manifest_path.exists() else {})
+        _record_tts_diagnostics(report, manifest)
         metrics, problems = _tts_quality(manifest)
-        report.data["tts"] = metrics
         report.data["quality_problems"] = [_quality_problem(item) for item in problems]
         round_number = 0
         stopped_for_no_progress = []
@@ -163,6 +177,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
             before = {x["segment_id"]: x for x in problems}
             tts_result = stages["TTS"]()
             manifest = tts_result if isinstance(tts_result, dict) else _json(paths.tts_manifest_path)
+            _record_tts_diagnostics(report, manifest)
             metrics, problems = _tts_quality(manifest)
             after = {x["segment_id"]: x for x in manifest.get("items", [])}
             no_progress = []
