@@ -144,3 +144,54 @@ def test_failed_final_mux_removes_partial_output(tmp_path, monkeypatch):
     assert (job / "dubbed_video.mp4").read_bytes() == b"standard-must-survive"
     manifest = json.loads((job / "09_background" / "background_manifest.json").read_text())
     assert manifest["success"] is False
+
+
+def test_success_manifest_write_failure_does_not_commit_output(tmp_path, monkeypatch):
+    job = _job(tmp_path)
+    calls = []
+    _fake_commands(monkeypatch, calls)
+    original_write_text = Path.write_text
+
+    def fail_success_manifest(path, data, *args, **kwargs):
+        if path.name == ".background_manifest.success.tmp":
+            raise OSError("success manifest unavailable")
+        return original_write_text(path, data, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", fail_success_manifest)
+
+    try:
+        background.add_background_audio(_args(tmp_path))
+    except OSError as exc:
+        assert str(exc) == "success manifest unavailable"
+    else:
+        raise AssertionError("expected manifest write failure")
+
+    assert not (job / "dubbed_video_with_bg.mp4").exists()
+    assert not (job / ".dubbed_video_with_bg.tmp.mp4").exists()
+    assert (job / "dubbed_video.mp4").read_bytes() == b"standard-must-survive"
+    manifest = json.loads((job / "09_background" / "background_manifest.json").read_text())
+    assert manifest["success"] is False
+
+
+def test_failure_manifest_write_does_not_hide_processing_error(tmp_path, monkeypatch):
+    job = _job(tmp_path)
+    monkeypatch.setattr(background.shutil, "which", lambda value: f"/bin/{value}")
+
+    def processing_failure(_command, *, quiet=True):
+        raise background.BackgroundAudioError("original processing failure")
+
+    def manifest_failure(_path, _payload):
+        raise OSError("manifest failure")
+
+    monkeypatch.setattr(background, "_run", processing_failure)
+    monkeypatch.setattr(background, "_write_manifest_atomic", manifest_failure)
+
+    try:
+        background.add_background_audio(_args(tmp_path))
+    except background.BackgroundAudioError as exc:
+        assert str(exc) == "original processing failure"
+    else:
+        raise AssertionError("expected original processing failure")
+
+    assert not (job / "dubbed_video_with_bg.mp4").exists()
+    assert (job / "dubbed_video.mp4").read_bytes() == b"standard-must-survive"

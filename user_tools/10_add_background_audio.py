@@ -114,6 +114,17 @@ def _valid_cache(cache_dir: Path, identity: dict[str, object]) -> bool:
         return False
 
 
+def _write_manifest_atomic(path: Path, payload: dict[str, object]) -> None:
+    temporary = path.with_name(f".{path.name}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _separate(args: argparse.Namespace, source: Path, cache_dir: Path,
               identity: dict[str, object]) -> None:
     prefix = _demucs_prefix(args)
@@ -148,7 +159,9 @@ def add_background_audio(args: argparse.Namespace) -> Path:
     output = job_dir / "dubbed_video_with_bg.mp4"
     cache_dir = job_dir / "09_background"
     manifest_path = cache_dir / "background_manifest.json"
+    temporary_manifest = cache_dir / ".background_manifest.success.tmp"
     temporary_output = job_dir / ".dubbed_video_with_bg.tmp.mp4"
+    output_backup = job_dir / ".dubbed_video_with_bg.backup.mp4"
     cache_reused = False
     manifest: dict[str, object] = {
         "source_video": str(source), "source_audio": str(source), "separation_backend": BACKEND,
@@ -185,19 +198,43 @@ def add_background_audio(args: argparse.Namespace) -> Path:
             raise BackgroundAudioError(
                 f"Final duration mismatch: expected {duration:.3f}s, got {final_duration:.3f}s"
             )
-        os.replace(temporary_output, output)
         manifest.update({"cache_reused": cache_reused, "final_duration": final_duration,
                          "success": True, "ffmpeg_command": command})
+        manifest["elapsed_time_seconds"] = round(monotonic() - started, 3)
+        temporary_manifest.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+
+        output_backup.unlink(missing_ok=True)
+        if output.exists():
+            os.replace(output, output_backup)
+        try:
+            os.replace(temporary_output, output)
+            os.replace(temporary_manifest, manifest_path)
+        except Exception:
+            output.unlink(missing_ok=True)
+            if output_backup.exists():
+                os.replace(output_backup, output)
+            raise
+        try:
+            output_backup.unlink(missing_ok=True)
+        except OSError:
+            pass
         return output
     except Exception as exc:
         temporary_output.unlink(missing_ok=True)
+        temporary_manifest.unlink(missing_ok=True)
+        if output_backup.exists() and not output.exists():
+            os.replace(output_backup, output)
         manifest.update({"cache_reused": cache_reused, "error": str(exc)})
-        raise
-    finally:
+        manifest["success"] = False
         manifest["elapsed_time_seconds"] = round(monotonic() - started, 3)
         if cache_dir.exists():
-            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-                                     encoding="utf-8")
+            try:
+                _write_manifest_atomic(manifest_path, manifest)
+            except OSError:
+                pass
+        raise
 
 
 def main(argv: list[str] | None = None) -> int:
