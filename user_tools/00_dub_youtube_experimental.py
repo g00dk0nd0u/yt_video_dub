@@ -66,6 +66,27 @@ def _audio_quality(manifest: dict) -> dict:
     return qa
 
 
+def _stage_result(name: str, result: object) -> dict | str:
+    """Keep STAGES bounded; detailed segment data belongs in quality sections."""
+    if not isinstance(result, dict):
+        return ""
+    if name == "Translation":
+        return {key: result[key] for key in ("provider", "chunk_count", "segment_count") if key in result}
+    if name == "TTS":
+        metrics = result.get("run_metrics", {})
+        return {"provider": result.get("tts_provider"), **{
+            key: metrics[key] for key in ("selected_units", "generated_units", "reused_units",
+                                           "failed_units", "fit_ok_count", "fit_fitted_count",
+                                           "fit_ng_count") if key in metrics}}
+    return ""
+
+
+def _quality_problem(item: dict) -> dict:
+    return {key: item.get(key) for key in (
+        "segment_id", "start", "end", "available_duration", "text", "raw_tts_duration",
+        "final_tts_duration", "rate", "fit_status")}
+
+
 def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural",
         max_repair_rounds: int = 2, stages: dict | None = None) -> Path:
     from path_layout import build_job_paths
@@ -94,7 +115,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
             "Repair": lambda: repair_translations(retry_path=paths.duration_retry_required_path,
                 input_dir=paths.translation_input_dir, output_dir=paths.translation_output_dir,
                 manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md"),
-            "Audio": lambda: audio.main(common), "Mux": lambda: mux.main(common),
+            "Audio": lambda: audio.main(common), "Mux": lambda: mux.main(common + ["--quiet"]),
         }
     last_success = "none"
     current = "Prepare"
@@ -104,7 +125,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
             result = stages[name]()
             if result not in (None, 0) and not isinstance(result, dict):
                 raise RuntimeError(f"stage returned exit code {result}")
-            report.stage(name, "OK", monotonic() - started, result if isinstance(result, dict) else "")
+            report.stage(name, "OK", monotonic() - started, _stage_result(name, result))
             print(f"{name:.<16} OK  {monotonic() - started:.1f}s")
             last_success = name
             if name == "Translation" and isinstance(result, dict):
@@ -112,7 +133,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
         manifest = result if isinstance(result, dict) and "run_metrics" in result else (_json(paths.tts_manifest_path) if paths.tts_manifest_path.exists() else {})
         metrics, problems = _tts_quality(manifest)
         report.data["tts"] = metrics
-        report.data["quality_problems"] = list(problems)
+        report.data["quality_problems"] = [_quality_problem(item) for item in problems]
         round_number = 0
         while problems and round_number < max_repair_rounds:
             round_number += 1
@@ -138,7 +159,8 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
         report.data["tts"] = metrics
         # Keep the original failure evidence even when repair succeeds.
         known = {x.get("segment_id") for x in report.data["quality_problems"]}
-        report.data["quality_problems"].extend(x for x in problems if x.get("segment_id") not in known)
+        report.data["quality_problems"].extend(_quality_problem(x) for x in problems
+                                                if x.get("segment_id") not in known)
         if problems:
             raise RuntimeError(f"fit_ng_count={len(problems)} after {max_repair_rounds} repair rounds")
         for name in ("Audio",):
