@@ -129,7 +129,11 @@ def repair_translations(
         repair_file = workspace / "input" / "duration_retry_required.jsonl"
         repair_file.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in repair_input), encoding="utf-8")
         task = (_task_text().replace("every JSONL file", "duration_retry_required.jsonl")
-                + " Use target_chars as strong guidance and rewrite only text. Output the same filename.")
+                + " Use target_chars as a strict maximum and rewrite only text. The primary goal is to reduce spoken duration, "
+                  "especially for very short Japanese segments. Preserve the core meaning, but when possible remove sentence-ending "
+                  "phrases such as よね, ですね, ですよ, ます, or です, plus redundant conjunctions and repeated expressions. "
+                  "Prefer fitting the available speaking time over naturalness, without deleting meaning-critical words. "
+                  "Output the same filename.")
         result = runner([executable, "exec", "--ephemeral", "--sandbox", "workspace-write",
                          "--skip-git-repo-check", "-C", str(workspace), task], cwd=workspace,
                         capture_output=True, text=True)

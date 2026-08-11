@@ -354,7 +354,7 @@ def test_repair_can_succeed_in_rounds_three_through_five(tmp_path, success_round
     assert "Audio" in calls and "Mux" in calls
 
 
-def test_unchanged_repair_stops_without_second_codex_call(tmp_path):
+def test_unchanged_repair_stops_after_second_consecutive_result(tmp_path):
     module = _module(); calls = []
     ng = {"run_metrics": {"failed_units": 0, "fit_ng_count": 1}, "items": [
         {"segment_id": "x", "text": "same", "fit_status": "ng", "final_tts_duration": 2.0}]}
@@ -365,9 +365,53 @@ def test_unchanged_repair_stops_without_second_codex_call(tmp_path):
         "text_before": "same", "text_after": "same"}]
     with pytest.raises(RuntimeError, match="fit_ng_count=1"):
         module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
-    assert calls.count("Repair") == 1
+    assert calls.count("Repair") == 2
     assert "no_progress_reason" in (tmp_path / "latest_run.txt").read_text()
     assert "Audio" not in calls and "Mux" not in calls
+
+
+def test_unchanged_repair_can_be_followed_by_shorter_success(tmp_path):
+    module = _module(); calls = []
+    texts = iter([("最高ですよね。", "最高ですよね。"), ("最高ですよね。", "最高。")])
+    tts_results = iter([
+        {"run_metrics": {"failed_units": 0, "fit_ng_count": 1}, "items": [
+            {"segment_id": "utt_0014", "fit_status": "ng", "final_tts_duration": 1.235375}]},
+        {"run_metrics": {"failed_units": 0, "fit_ng_count": 1}, "items": [
+            {"segment_id": "utt_0014", "fit_status": "ng", "final_tts_duration": 1.235375}]},
+        {"run_metrics": {"failed_units": 0, "fit_ng_count": 0}, "items": [
+            {"segment_id": "utt_0014", "fit_status": "ok", "final_tts_duration": .8}]},
+    ])
+
+    def repair():
+        calls.append("Repair")
+        before, after = next(texts)
+        return [{"segment_id": "utt_0014", "text_before": before,
+                 "text_after": after, "target_chars": 5}]
+
+    def audio():
+        calls.append("Audio")
+        path = tmp_path / "abc123/07_audio/dub_audio_manifest.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({"warnings_count": 0, "items": []}))
+
+    stages = {name: (lambda name=name: calls.append(name)) for name in
+              ("Prepare", "Translation", "Build", "Preflight", "Mux")}
+    stages.update(TTS=lambda: next(tts_results), Repair=repair, Audio=audio)
+
+    module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
+
+    assert calls.count("Repair") == 2
+    assert "Audio" in calls and "Mux" in calls
+
+
+def test_tighten_repair_target_is_materially_stricter(tmp_path):
+    module = _module()
+    retry = tmp_path / "duration_retry_required.jsonl"
+    retry.write_text(json.dumps({"segment_id": "utt_0014", "target_chars": 5}) + "\n")
+
+    module._tighten_repair_targets(retry, {"utt_0014"})
+
+    assert json.loads(retry.read_text())["target_chars"] == 3
 
 
 def test_duration_no_progress_stops_before_five_rounds(tmp_path):
