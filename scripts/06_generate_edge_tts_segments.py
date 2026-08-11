@@ -27,8 +27,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _measure_wav(path: Path) -> float:
-    with wave.open(str(path), "rb") as reader:
-        return reader.getnframes() / float(reader.getframerate())
+    try:
+        with wave.open(str(path), "rb") as reader:
+            sample_rate = reader.getframerate()
+            if sample_rate <= 0:
+                raise EdgeTTSError("Edge audio measurement failed.")
+            return reader.getnframes() / float(sample_rate)
+    except (wave.Error, EOFError, OSError) as exc:
+        raise EdgeTTSError("Edge audio measurement failed.") from exc
 
 
 def _convert_to_wav(source: Path, target: Path, ffmpeg_bin: str) -> None:
@@ -44,9 +50,38 @@ def _convert_to_wav(source: Path, target: Path, ffmpeg_bin: str) -> None:
 def _cache_matches(manifest: dict, item: dict, segment: dict, voice: str, wav: Path) -> bool:
     return (
         manifest.get("tts_provider") == "edge" and manifest.get("voice") == voice
+        and manifest.get("provider_settings", {}).get("max_rate_percent") == MAX_RATE_PERCENT
+        and item.get("status") in {"generated", "reused"}
         and wav.exists()
         and all(item.get(key) == segment.get(key) for key in ("segment_id", "start", "end", "text"))
     )
+
+
+def _target_chars(text: str, available: float, raw_duration: float) -> int:
+    if not text or available <= 0 or raw_duration <= 0:
+        return 0
+    estimate = len(text) * available / raw_duration * 0.9
+    return max(1, min(len(text) - 1, math.floor(estimate)))
+
+
+def _write_retry_artifact(path: Path, items: list[dict]) -> None:
+    rows = []
+    for item in items:
+        if item.get("fit_status") != "ng" or not item.get("translation_retry_required"):
+            continue
+        available = float(item["available_duration"])
+        raw_duration = float(item["raw_tts_duration"])
+        text = str(item.get("text", ""))
+        rows.append({
+            "segment_id": item["segment_id"], "start": item["start"], "end": item["end"],
+            "duration": available, "current_text": text,
+            "raw_tts_duration": raw_duration,
+            "required_speed": round(raw_duration / available, 6) if available > 0 else None,
+            "target_chars": _target_chars(text, available, raw_duration),
+        })
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows),
+                    encoding="utf-8")
 
 
 def generate_job(*, job_id: str, output_dir: str | Path, voice: str = DEFAULT_VOICE,
@@ -63,7 +98,7 @@ def generate_job(*, job_id: str, output_dir: str | Path, voice: str = DEFAULT_VO
     old_items = {item.get("segment_id"): item for item in old.get("items", [])}
     provider = provider or EdgeTTSProvider(voice)
     items = []
-    generated = reused = 0
+    generated = reused = skipped_empty = failed = 0
     with tempfile.TemporaryDirectory(prefix="yt_video_dub_edge_") as temporary:
         temp = Path(temporary)
         for index, segment in enumerate(segments, start=1):
@@ -79,21 +114,35 @@ def generate_job(*, job_id: str, output_dir: str | Path, voice: str = DEFAULT_VO
             if not segment["text"].strip():
                 items.append({"index": index, **segment, "wav_path": None, "status": "skipped_empty",
                               "fit_status": "ok", "translation_retry_required": False})
+                skipped_empty += 1
                 continue
             native = temp / f"{index:06d}.mp3"
-            provider.synthesize(segment["text"], native, rate_percent=0)
-            converter(native, wav, ffmpeg_bin)
-            raw_duration = measure(wav)
-            final_duration = raw_duration
-            rate_percent = 0
-            retry_count = 0
-            if available > 0 and 1.0 < raw_duration / available <= 1.15:
-                rate_percent = min(MAX_RATE_PERCENT,
-                                   max(1, math.ceil((raw_duration / available - 1.0) * 100)))
-                provider.synthesize(segment["text"], native, rate_percent=rate_percent)
+            try:
+                provider.synthesize(segment["text"], native, rate_percent=0)
                 converter(native, wav, ffmpeg_bin)
-                final_duration = measure(wav)
-                retry_count = 1
+                raw_duration = measure(wav)
+                final_duration = raw_duration
+                rate_percent = 0
+                retry_count = 0
+                if available > 0 and 1.0 < raw_duration / available <= 1.15:
+                    rate_percent = min(MAX_RATE_PERCENT,
+                                       max(1, math.ceil((raw_duration / available - 1.0) * 100)))
+                    provider.synthesize(segment["text"], native, rate_percent=rate_percent)
+                    converter(native, wav, ffmpeg_bin)
+                    final_duration = measure(wav)
+                    retry_count = 1
+            except (EdgeTTSError, OSError, EOFError, wave.Error,
+                    subprocess.CalledProcessError) as exc:
+                wav.unlink(missing_ok=True)
+                message = str(exc) if isinstance(exc, EdgeTTSError) else "Edge audio processing failed."
+                items.append({
+                    "index": index, **segment, "wav_path": None, "status": "failed",
+                    "tts_provider": "edge", "voice": voice, "fit_status": None,
+                    "translation_retry_required": False, "error_type": type(exc).__name__,
+                    "error_message": message,
+                })
+                failed += 1
+                continue
             fit_status = ("ok" if final_duration <= available and retry_count == 0 else
                           "fitted" if final_duration <= available else "ng")
             items.append({
@@ -107,22 +156,30 @@ def generate_job(*, job_id: str, output_dir: str | Path, voice: str = DEFAULT_VO
                 "fit_status": fit_status, "translation_retry_required": fit_status == "ng",
             })
             generated += 1
+    fitted_items = [item for item in items if item.get("status") in {"generated", "reused"}]
+    fit_counts = {
+        "fit_ok_count": sum(item.get("fit_status") == "ok" for item in fitted_items),
+        "fit_fitted_count": sum(item.get("fit_status") == "fitted" for item in fitted_items),
+        "fit_ng_count": sum(item.get("fit_status") == "ng" for item in fitted_items),
+    }
     manifest = {"job_id": job_id, "tts_provider": "edge", "voice": voice,
                 "provider_settings": {"max_rate_percent": MAX_RATE_PERCENT},
                 "total_segments": len(segments),
                 "run_metrics": {"selected_units": len(segments), "generated_units": generated,
-                                "reused_units": reused}, "items": items}
+                                "reused_units": reused, "skipped_empty_units": skipped_empty,
+                                "failed_units": failed, **fit_counts}, "items": items}
     paths.tts_manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
                                        encoding="utf-8")
+    _write_retry_artifact(paths.duration_retry_required_path, items)
     return manifest
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    generate_job(job_id=args.job_id, output_dir=args.output_dir, voice=args.voice,
-                 ffmpeg_bin=args.ffmpeg_bin, resume=args.resume, force=args.force)
+    manifest = generate_job(job_id=args.job_id, output_dir=args.output_dir, voice=args.voice,
+                            ffmpeg_bin=args.ffmpeg_bin, resume=args.resume, force=args.force)
     print(f"Generated Edge TTS segments for job: {args.job_id}")
-    return 0
+    return 1 if manifest["run_metrics"]["failed_units"] else 0
 
 
 if __name__ == "__main__":

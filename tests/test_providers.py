@@ -52,6 +52,7 @@ def test_codex_validation_and_isolation(tmp_path, monkeypatch, mode):
     def runner(command, **kwargs):
         workspace = Path(kwargs["cwd"])
         observed["workspace"] = workspace
+        observed["command"] = command
         if mode not in {"missing", "nonzero"}:
             translated = dict(source, text="こんにちは")
             if mode == "metadata":
@@ -67,11 +68,36 @@ def test_codex_validation_and_isolation(tmp_path, monkeypatch, mode):
         assert metadata == {"provider": "codex_cli", "chunk_count": 1, "status": "completed"}
         assert json.loads((output_dir / "chunk_0001.txt").read_text())["text"] == "こんにちは"
         assert observed["workspace"] != input_dir.parents[1]
+        assert "--skip-git-repo-check" in observed["command"]
+        assert observed["command"][observed["command"].index("-C") + 1] == str(
+            observed["workspace"]
+        )
     else:
         with pytest.raises(codex_cli.CodexTranslationError):
             codex_cli.translate_job(input_dir=input_dir, output_dir=output_dir,
                                     manifest_path=manifest, rules_path=rules, runner=runner)
         assert not (output_dir / "chunk_0001.txt").exists()
+
+
+def test_codex_cannot_rewrite_validation_source(tmp_path, monkeypatch):
+    from providers.translation import codex_cli
+
+    input_dir, output_dir, manifest, rules, source = _translation_job(tmp_path)
+    monkeypatch.setattr(codex_cli.shutil, "which", lambda _: "/usr/bin/codex")
+
+    def runner(command, **kwargs):
+        workspace = Path(kwargs["cwd"])
+        changed = dict(source, start=9.0, text="改変")
+        content = json.dumps(changed) + "\n"
+        (workspace / "input/chunk_0001.txt").write_text(content)
+        (workspace / "output/chunk_0001.txt").write_text(content)
+        return type("Result", (), {"returncode": 0})()
+
+    with pytest.raises(codex_cli.CodexTranslationError):
+        codex_cli.translate_job(input_dir=input_dir, output_dir=output_dir,
+                                manifest_path=manifest, rules_path=rules, runner=runner)
+    assert json.loads((input_dir / "chunk_0001.txt").read_text()) == source
+    assert not (output_dir / "chunk_0001.txt").exists()
 
 
 def test_aivis_cache_rejects_edge_manifest(load_script):
