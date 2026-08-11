@@ -1,150 +1,61 @@
 # yt_video_dub
 
-自分用のシンプルな日本語吹替動画生成へ整理中のリポジトリです。
-
-現在の本線は `user_tools/`、`scripts/`、`docs/` です。旧YMM系、旧VOICEVOX系、GPU前提コードは削除せず `legacy/` に退避しています。
-
-## Current Layout
-
-- `user_tools/`: ユーザーが直接触る入口
-- `scripts/`: 内部パイプライン実装と補助ステップ
-- `docs/`: ワークフローと翻訳モードの設計メモ
-- `legacy/`: 退避した旧コード
-- `tools/90_zip.py`: レビュー用 ZIP 出力
-- `data/`: ローカル作業用アセット
+YouTube の英語動画を、元映像の時間軸を変えずに日本語吹替動画へ変換します。
+通常利用では YouTube URL（または動画 ID）を一度入力するだけです。
 
 ## Setup
 
 ```bash
-cd /Users/ryokondo/Documents/iMac_Python/yt_video_dub
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 ```
 
-Whisper fallback は未実装です。必要になった時点で `faster-whisper` を追加導入します。
+Codex CLI をインストールし、ChatGPT アカウントで sign in してください。翻訳用の有料 API、API key、local LLM は不要です。`ffmpeg` と `ffprobe` は PATH 上に必要です。Whisper fallback は未実装です。
 
-Codex に YouTube URL だけ渡すと、`AGENTS.md` のルールにより `docs/codex_run_youtube_dub.md` の流れで、翻訳済みソース作成まで進めます。長時間の TTS 生成や ffmpeg による動画生成は Codex では実行しません。
-
-## Entrypoints
+## Default workflow
 
 ```bash
-python user_tools/01_new_youtube.py
-python user_tools/02_make_video.py
-python user_tools/99_cleanup.py
+python user_tools/00_dub_youtube.py
 ```
 
-### Experimental: one-command route
+YouTube URL または bare video ID（例: `OEkxKdhtQng`）を一度入力すると、次を順番に実行します。
 
-Codex CLI translation + Edge TTS を使う experimental route です。AivisSpeech の起動は不要です。
-既存の AivisSpeech route は stable path のままで、default は切り替えていません。
+1. source と字幕を取得・正規化
+2. Codex CLI で英語から日本語へ翻訳
+3. Edge TTS で音声生成（resume/cache 対応）
+4. 元字幕の絶対 start に音声を配置
+5. Audio QA
+6. codec-compatible mux
+7. `output/<video_id>/dubbed_video.mp4` を生成
 
-```bash
-python user_tools/00_dub_youtube_experimental.py
-```
+音声は `--voice` で変更できます。失敗時の primary diagnostic handoff は `output/latest_run.txt` です。古い job の削除には `python user_tools/99_cleanup.py` を使います。
 
-YouTube URL を1回入力すると、isolated workspace での `codex exec` 翻訳、Edge TTS、
-固定 timeline 音声合成、stream-copy mux を順に実行し、
-`output/<video_id>/dubbed_video.mp4` を生成します。Codex CLI は事前にインストールし、
-ChatGPT account で sign in してください。音声は `--voice` で変更できます。
+## Timeline / quality invariants
 
-普段ユーザーが触るのは `user_tools/` の3本だけです。
+- source video timeline は固定し、映像の slowdown、retime、segment concat は行いません。
+- 各音声は source の絶対時刻へ配置するため、累積 drift はありません。
+- TTS に failed/NG が残る場合、Audio/Mux へ進みません。
+- Audio QA の warnings、clipped、overflow が一つでも nonzero なら成功にしません。
+- 元英語音声はデフォルト `-38 dB` で日本語音声と mix します。
+- `ffprobe` で source codec を判定し、H.264 のみ video stream-copy します。
+- AV1、VP9、HEVC、unknown を含むその他 codec は H.264 へ fallback transcode します。
+- mux 後にも final video codec を検証します。
 
-1. `user_tools/01_new_youtube.py` を実行して YouTube URL を貼る
-2. Codex に URL を渡した場合は翻訳後に build と preflight を行い、`local_run_preflight.json` が `ready` になるまで handoff を完了扱いにしない
-3. 動画生成はユーザーの Mac で AivisSpeech を起動してから `user_tools/02_make_video.py` を実行する
-4. `output/<video_id>/dubbed_video.mp4` を開く
-5. 掃除したい時は `user_tools/99_cleanup.py` を実行する
+詳細は [docs/workflow.md](docs/workflow.md) を参照してください。
 
-`scripts/` は内部処理用として残しています。主な内部入口は `scripts/run_prepare.py` と `scripts/91_run_local_tts_pipeline.py` です。
+## Optional / advanced AivisSpeech tools
 
-`user_tools/01_new_youtube.py` は `scripts/run_prepare.py` を呼び、YouTube URL から翻訳用ファイルを作ります。`--job-id` を指定しないため、動画IDがそのまま `output/<video_id>/` に使われます。
+AivisSpeech は通常フローでは起動も使用もしません。明示的に AivisSpeech を評価・利用するときだけ、以下の既存ツールを使えます。
 
-`user_tools/02_make_video.py` は `scripts/91_run_local_tts_pipeline.py` を呼び、翻訳済みテキストから音声と映像を合わせた日本語吹替動画を作ります。
-完成動画は English→Japanese 専用 Fast Path で作成します。映像タイムラインは変更せず、各日本語音声を元字幕の絶対 start 時刻へ配置するため、前の発話が長くても累積 drift は発生しません。超過音声は短い fade-out 付きで clip し、manifest に同期違反を記録します。
+- `scripts/05_probe_aivis.py`: 接続確認
+- `scripts/06_generate_tts_segments.py`: AivisSpeech segment TTS
+- `scripts/91_run_local_tts_pipeline.py`: AivisSpeech 専用 local pipeline
+- `scripts/92_benchmark_tts_concurrency.py` ～ `94_run_tts_concurrency_matrix.py`: quality/performance benchmark
 
-Codex URL ワークフローの完了地点は、翻訳済みソースの作成と軽量ファイルの commit/push です。その先の動画生成はローカルで次を実行します。
+## Output and Git policy
 
-```bash
-python user_tools/02_make_video.py
-```
+`output/**` はすべて runtime/cache であり Git ignored です。tracked file は `output/.gitkeep` だけです。生成した JSON/TXT/SRT を含め、job artifact を commit/push しません。大きな media を repository に追加しないでください。
 
-非対話で実行する場合:
-
-```bash
-python3 scripts/91_run_local_tts_pipeline.py \
-  --job-id <video_id> \
-  --output-dir output \
-  --base-url http://127.0.0.1:10101 \
-  --speaker-id 1937616896 \
-  --ffmpeg-bin ffmpeg \
-  --ffprobe-bin ffprobe \
-  --resume \
-  --mux-video
-```
-
-`user_tools/99_cleanup.py` は `output/` 配下の動画フォルダだけを安全に削除します。
-
-開発・性能測定用に、translation preflight、warm-up、固定された 1/2/4 worker の
-AivisSpeech benchmark を一括実行できます（通常の動画生成手順ではありません）。
-
-```bash
-python3 scripts/94_run_tts_concurrency_matrix.py \
-  --job-id <video_id> \
-  --output-dir output
-```
-
-## Fixed Output Layout
-
-```
-output/<video_id>/
-  dubbed_video.mp4
-
-  01_source/
-    source.mp4
-    job.json
-  02_transcript/
-    transcript_raw.json
-    transcript_raw.srt
-    transcript_normalized.json
-    transcript_normalized.srt
-  03_translation_input/
-    manifest.json
-    chunk_0001.txt
-  04_translation_output/
-  05_segments/
-    translated_segments.json
-    translated_segments.srt
-    local_run_preflight.json
-  06_tts/
-    tts_manifest.json
-  07_audio/
-    dub_audio.wav
-    dub_audio_manifest.json
-```
-
-Finder では `output/<video_id>/dubbed_video.mp4` が完成動画として直下に見えます。元英語音声はデフォルト約 -38 dB で日本語音声と mix し、映像 stream は再エンコードせず copy します。旧 `09_build_synced_video.py` の segment trim・速度変更・concat 方式は通常フローでは使用しません。
-
-## Git Tracking Policy
-
-- `output/**/*.json`
-- `output/**/*.txt`
-- `output/**/*.srt`
-
-上の軽量ファイルは Git 管理できます。
-
-- `output/**/*.mp4`
-- `output/**/*.wav`
-- `output/**/*.mov`
-- `output/**/*.m4a`
-- `output/**/*.aac`
-
-上の重いメディアは `.gitignore` で無視します。
-
-## Notes
-
-- YouTube 字幕取得は `youtube-transcript-api` を本線にする方針です。
-- Whisper は YouTube 字幕が取得できない場合やローカル動画向け fallback として将来追加予定です。現状は分かりやすいエラーで停止します。
-- AivisSpeech はローカル接続前提です。詳細は [docs/workflow.md](docs/workflow.md) にあります。
-- 字幕正規化は決定的な pure-Python 処理で、LLM は使いません。Fast Path は duration-aware fitting、selective retry、検証付き resume/cache に対応しています。
+レビュー用 ZIP が必要な場合は `tools/90_zip.py` を使います。

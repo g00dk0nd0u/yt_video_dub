@@ -1,19 +1,4 @@
-colorama
 edge-tts
-huggingface-hub
-matplotlib
-moviepy
-numpy
-ollama
-opencv-python
-Pillow
-pydub
-pyperclip
-questionary
 requests
-scikit-image
 youtube-transcript-api
 yt-dlp
-
-# Optional (Whisper transcription):
-# faster-whisper

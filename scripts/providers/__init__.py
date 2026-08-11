@@ -1,4 +1,4 @@
-"""Small provider registry used by the experimental pipeline."""
+"""Small provider registry used by the provider-based pipeline."""
 
 from __future__ import annotations
 

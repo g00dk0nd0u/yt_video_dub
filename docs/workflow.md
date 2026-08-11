@@ -1,92 +1,31 @@
-# Workflow
+# Default workflow
 
-`yt_video_dub` uses a simple user-facing workflow built around `user_tools/`.
-
-## User Flow
-
-1. Run `user_tools/01_new_youtube.py`.
-2. Paste a YouTube URL.
-3. The repository creates working files under `output/<video_id>/`.
-4. Translate `03_translation_input/chunk_*.txt` into Japanese and save them to `04_translation_output/chunk_*.txt`.
-5. Start AivisSpeech locally.
-6. Run `user_tools/02_make_video.py`.
-7. Open `output/<video_id>/dubbed_video.mp4`.
-8. Run `user_tools/99_cleanup.py` when you want to remove old video folders.
-
-## Internal Script Mapping
-
-- `scripts/run_prepare.py`
-  - `01_prepare_source.py`
-  - `02_get_transcript.py`
-  - `02_normalize_transcript.py`
-  - `03_make_translation_chunks.py`
-- `scripts/91_run_local_tts_pipeline.py`
-  - `04_build_translated_segments.py`
-  - `06_generate_tts_segments.py`
-  - `07_build_dub_audio.py`
-  - `08_mux_video.py`
-
-## Fixed Output Layout
-
-```text
-output/<video_id>/
-  dubbed_video.mp4
-  01_source/
-    source.mp4
-    job.json
-  02_transcript/
-    transcript_raw.json
-    transcript_raw.srt
-    transcript_normalized.json
-    transcript_normalized.srt
-  03_translation_input/
-    manifest.json
-    chunk_0001.txt
-  04_translation_output/
-  05_segments/
-    translated_segments.json
-    translated_segments.srt
-  06_tts/
-  07_audio/
-    dub_audio.wav
-```
-
-## Fixed-timeline Fast Path
-
-- This path is English→Japanese only and prioritizes YouTube transcripts. Whisper fallback is not implemented.
-- Raw caption fragments remain intact; deterministic normalization removes rolling-caption duplication and creates mapped utterance units before translation.
-- Every Japanese WAV is anchored to its source absolute start. A long prior WAV never shifts a later utterance, so cumulative drift is forbidden.
-- Audio beyond the utterance hard end or next absolute start is faded, clipped, and explicitly reported. Duration-aware fitting and selective retry are available in the Fast Path.
-- The original soundtrack remains at about -38 dB and is mixed with the Japanese dub without `amix` normalization.
-- ffmpeg copies the original video stream and does not use `-shortest`; the source video timeline and duration remain unchanged.
-- `09_build_synced_video.py` is a legacy/reference per-segment trim, speed-change, re-encode, and concat path and is not called by the normal pipeline.
-
-## AivisSpeech Connection Assumptions
-
-- AivisSpeech is expected to be available through a local HTTP API.
-- `user_tools/02_make_video.py` uses:
-  - `http://127.0.0.1:10101`
-  - speaker ID `1937616896`
-  - `ffmpeg`
-
-## AivisSpeech Connection Checks
-
-Before creating the final video, confirm:
-
-1. AivisSpeech is running locally.
-2. The local API base URL is known.
-3. The speaker ID to use for Japanese dubbing is known.
-4. A simple health or test request can be made from the terminal.
-
-Example check flow to document and validate later:
+## User flow
 
 ```bash
-curl http://127.0.0.1:10101/
+python user_tools/00_dub_youtube.py
 ```
 
-The exact endpoint and payload contract are still to be confirmed.
+YouTube URL または bare video ID を一度入力します。default route は、source preparation → Codex CLI translation → Edge TTS → fixed-timeline audio assembly → Audio QA → codec-compatible mux を連続実行し、`output/<video_id>/dubbed_video.mp4` を作ります。paid translation API、API key、local LLM、AivisSpeech process は不要です。
 
-## Notes
+## Fixed source timeline
 
-- Whisper fallback for subtitle-missing YouTube videos and local videos is not implemented yet.
-- Local video support still needs future work.
+- 日本語 WAV は各 source caption の絶対 start に配置します。前の発話に依存した shift を行わないため cumulative drift はありません。
+- source video の duration/timeline を固定し、映像の速度変更、trim、retime、segment concat を禁止します。
+- TTS failed/NG が残れば Audio/Mux を実行しません。
+- Audio QA の warnings/clipped/overflow が nonzero なら run は失敗します。
+- 元英語音声は default `-38 dB`、`amix` normalization なしで mix します。
+
+## Compatible mux
+
+`scripts/08_mux_video.py` は source video codec を `ffprobe` します。H.264 は stream-copy、AV1/VP9/HEVC/unknown 等は `libx264` fallback transcode を使用し、生成後にも codec が H.264 compatible であることを検証します。
+
+## Output / diagnostics
+
+Job artifact は `output/<video_id>/`、完成動画はその直下の `dubbed_video.mp4` です。`output/latest_run.txt` が成功・失敗双方の primary diagnostic handoff です。`output/**` は runtime/cache として Git ignored で、`output/.gitkeep` だけを track します。
+
+## Optional AivisSpeech
+
+AivisSpeech は explicit optional/advanced mode だけです。接続 probe、Aivis segment generation、専用 local pipeline、concurrency benchmark は Issue #7 系の quality/performance comparison を再現できるため残しています。default entrypoint からは参照も自動起動もしません。
+
+Whisper fallback、local video、lip sync、voice cloning は未実装です。

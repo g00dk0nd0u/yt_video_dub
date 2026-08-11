@@ -47,14 +47,6 @@ class JobPaths:
         return self.job_dir / "07_audio"
 
     @property
-    def synced_video_dir(self) -> Path:
-        return self.job_dir / "08_synced_video"
-
-    @property
-    def simple_mux_dir(self) -> Path:
-        return self.job_dir / "09_simple_mux"
-
-    @property
     def metrics_dir(self) -> Path:
         return self.job_dir / "10_metrics"
 
@@ -127,29 +119,12 @@ class JobPaths:
         return self.audio_dir / "dub_audio_manifest.json"
 
     @property
-    def synced_video_manifest_path(self) -> Path:
-        return self.synced_video_dir / "synced_video_manifest.json"
-
-    @property
-    def synced_segments_dir(self) -> Path:
-        return self.synced_video_dir / "synced_segments"
-
-    @property
-    def dubbed_video_synced_path(self) -> Path:
-        """Compatibility alias for the old user-facing result property."""
-        return self.dubbed_video_path
-
-    @property
     def dubbed_video_path(self) -> Path:
         return self.job_dir / "dubbed_video.mp4"
 
     @property
     def run_summary_path(self) -> Path:
         return self.job_dir / "run_summary.json"
-
-    @property
-    def dubbed_video_simple_path(self) -> Path:
-        return self.simple_mux_dir / "dubbed_video.mp4"
 
     def ensure_prepare_dirs(self) -> None:
         self.job_dir.mkdir(parents=True, exist_ok=True)
@@ -163,12 +138,6 @@ class JobPaths:
 
     def ensure_audio_dirs(self) -> None:
         self.audio_dir.mkdir(parents=True, exist_ok=True)
-
-    def ensure_synced_video_dirs(self) -> None:
-        self.synced_segments_dir.mkdir(parents=True, exist_ok=True)
-
-    def ensure_simple_mux_dir(self) -> None:
-        self.simple_mux_dir.mkdir(parents=True, exist_ok=True)
 
     def ensure_metrics_dir(self) -> None:
         self.metrics_dir.mkdir(parents=True, exist_ok=True)
@@ -245,18 +214,6 @@ class JobPaths:
         return _prefer_existing(
             self.dub_audio_manifest_path,
             self.job_dir / "dub_audio_manifest.json",
-        )
-
-    def resolve_synced_video_manifest_path(self) -> Path:
-        return _prefer_existing(
-            self.synced_video_manifest_path,
-            self.job_dir / "synced_video_manifest.json",
-        )
-
-    def resolve_synced_segments_dir(self) -> Path:
-        return _prefer_existing_dir(
-            self.synced_segments_dir,
-            self.job_dir / "synced_segments",
         )
 
 
