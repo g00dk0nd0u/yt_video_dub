@@ -33,16 +33,9 @@ Thumbs.db
 # Ignore all contents under data
 data/**
 
-# Generated pipeline outputs
+# Generated pipeline outputs are local runtime/cache artifacts, never source files.
 output/**
-!output/
 !output/.gitkeep
-!output/**/
-!output/**/*.json
-!output/**/*.txt
-!output/**/*.srt
-output/**/*.mp4
-output/**/*.wav
-output/**/*.mov
-output/**/*.m4a
-output/**/*.aac
+
+# Local legacy/archive files
+legacy/yt_video_dub.zip
