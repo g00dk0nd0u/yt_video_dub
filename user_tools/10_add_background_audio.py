@@ -226,7 +226,7 @@ def add_background_audio(args: argparse.Namespace) -> Path:
     cache_dir = job_dir / "09_background"
     manifest_path = cache_dir / "background_manifest.json"
     temporary_manifest = cache_dir / ".background_manifest.success.tmp"
-    temporary_output = job_dir / ".dubbed_video_with_bg.tmp.mp4"
+    temporary_output = job_dir / "dubbed_video_with_bg.tmp.mp4"
     output_backup = job_dir / ".dubbed_video_with_bg.backup.mp4"
     cache_reused = False
     manifest: dict[str, object] = {
