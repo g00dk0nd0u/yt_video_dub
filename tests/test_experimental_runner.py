@@ -49,6 +49,17 @@ def test_url_prompt_once(monkeypatch):
     assert len(prompts) == 1
 
 
+def test_invalid_url_does_not_advertise_stale_diagnostic(tmp_path, capsys):
+    module = _module()
+    stale = tmp_path / "latest_run.txt"
+    stale.write_text("previous run")
+    assert module.main(["--url", "https://example.com/not-youtube",
+                        "--output-dir", str(tmp_path)]) == 1
+    output = capsys.readouterr().out
+    assert "Diagnostic:" not in output
+    assert stale.read_text() == "previous run"
+
+
 def test_success_writes_diagnostics_and_zero_quality_summary(tmp_path):
     module = _module()
     job = tmp_path / "abc123"
