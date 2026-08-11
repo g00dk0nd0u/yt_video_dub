@@ -76,6 +76,7 @@ def test_compatible_video_codec_keeps_copy_fast_path(
     manifest = json.loads((job / "07_audio/fast_mux_manifest.json").read_text())
     assert manifest["video_mode"] == "copy"
     assert manifest["compatibility_fallback_used"] is False
+    assert "video_codec" not in manifest
 
 
 @pytest.mark.parametrize("source_codec", ["av1", "vp9"])
@@ -108,6 +109,7 @@ def test_unsafe_video_codec_transcodes_and_validates_h264(
     assert manifest["output_video_codec"] == "h264"
     assert manifest["video_mode"] == "transcode"
     assert manifest["compatibility_fallback_used"] is True
+    assert "video_codec" not in manifest
 
 
 def test_mux_rejects_incompatible_final_codec(tmp_path, load_script, monkeypatch):

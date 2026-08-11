@@ -115,6 +115,12 @@ def _record_tts_diagnostics(report, manifest: dict) -> None:
     ]
 
 
+def _mux_diagnostics(manifest: dict) -> dict:
+    fields = ("source_video_codec", "output_video_codec", "video_mode",
+              "compatibility_fallback_used")
+    return {field: manifest[field] for field in fields if field in manifest}
+
+
 def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural",
         max_repair_rounds: int = 2, stages: dict | None = None) -> Path:
     from path_layout import build_job_paths
@@ -224,7 +230,10 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
         print(f"{current:.<16} OK")
         current, started = "Mux", monotonic(); result = stages["Mux"]()
         if result not in (None, 0) and not isinstance(result, dict): raise RuntimeError(f"stage returned exit code {result}")
-        report.stage(current, "OK", monotonic() - started); last_success = current
+        mux_manifest_path = paths.audio_dir / "fast_mux_manifest.json"
+        mux_manifest = (result if isinstance(result, dict) else
+                        (_json(mux_manifest_path) if mux_manifest_path.exists() else {}))
+        report.stage(current, "OK", monotonic() - started, _mux_diagnostics(mux_manifest)); last_success = current
         print(f"{current:.<16} OK  {monotonic() - started:.1f}s")
         report.finalize(success=True, video=paths.dubbed_video_path)
         return paths.dubbed_video_path
