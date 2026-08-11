@@ -109,3 +109,24 @@ def test_micro_unit_does_not_create_overlong_unit():
                                max_duration=1.5)
     assert len(units) == 2
     assert all(unit["available_duration"] <= 1.5 for unit in units)
+
+
+def test_boundary_cue_markers_are_removed_without_damaging_technical_text():
+    raw = [
+        _segment(1, 0, 1, ">>"),
+        _segment(2, 1, 3, ">> leading speech."),
+        _segment(3, 3, 5, "trailing speech. >>"),
+        _segment(4, 5, 8, "x > 10; A >= B; foo -> bar."),
+        _segment(5, 8, 10, "x >> 2."),
+        _segment(6, 10, 12, "echo foo >> log.txt"),
+    ]
+    units = normalize_segments(raw, min_tts_unit_seconds=0)
+
+    assert [unit["source_text"] for unit in units] == [
+        "leading speech.", "trailing speech.", "x > 10; A >= B; foo -> bar.",
+        "x >> 2.", "echo foo >> log.txt",
+    ]
+    assert units[0]["source_segment_ids"] == ["seg_0002"]
+    assert (units[0]["source_start"], units[0]["source_end"]) == (1.667, 3.0)
+    assert units[1]["source_segment_ids"] == ["seg_0003"]
+    assert (units[1]["source_start"], units[1]["source_end"]) == (3.0, 4.333)
