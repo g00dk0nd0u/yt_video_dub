@@ -96,6 +96,27 @@ def _check_comparability(
     return list(dict.fromkeys(warnings))
 
 
+def _candidate_entry(
+    workers: int, sample: dict[str, Any], sample_path: Path, job_directory: Path,
+) -> dict[str, Any]:
+    errors = sample.get("errors")
+    errors = errors if isinstance(errors, list) else []
+    return {
+        "workers": workers,
+        "status": sample["status"],
+        "path": sample_path.relative_to(job_directory).as_posix(),
+        "error_count": len(errors),
+        "error_segment_ids": [
+            error.get("segment_id") for error in errors
+            if isinstance(error, dict) and isinstance(error.get("segment_id"), str)
+        ],
+        "error_types": list(dict.fromkeys(
+            error["error_type"] for error in errors
+            if isinstance(error, dict) and isinstance(error.get("error_type"), str)
+        )),
+    }
+
+
 def run_matrix(args: argparse.Namespace) -> tuple[dict[str, Any] | None, Path | None, int]:
     report = preflight.run_preflight(args.job_id, args.output_dir)
     if report.get("status") != "ready":
@@ -138,14 +159,15 @@ def run_matrix(args: argparse.Namespace) -> tuple[dict[str, Any] | None, Path | 
                 speaker_id=args.speaker_id, timeout=args.timeout,
             )
             matrix_samples.append(sample)
-            artifact["samples"].append({
-                "workers": workers, "status": sample["status"],
-                "path": sample_path.relative_to(paths.job_dir).as_posix(),
-            })
+            artifact["samples"].append(
+                _candidate_entry(workers, sample, sample_path, paths.job_dir)
+            )
         except Exception as exc:  # Record setup/programming failure and retain later candidates.
             artifact["samples"].append({
                 "workers": workers, "status": "failed_to_create_sample",
-                "path": None, "error_type": type(exc).__name__,
+                "path": None, "error_count": 1,
+                "error_segment_ids": [], "error_types": [type(exc).__name__],
+                "error_type": type(exc).__name__,
                 "error_message": benchmark._safe_error(exc),
             })
 
@@ -154,15 +176,21 @@ def run_matrix(args: argparse.Namespace) -> tuple[dict[str, Any] | None, Path | 
         warnings.append("NOT COMPARABLE: one or more candidate samples were not created.")
     artifact["comparability_warnings"] = warnings
     artifact["comparability_status"] = "comparable" if not warnings else "not_comparable"
-    artifact["status"] = "completed"
+    if len(matrix_samples) != len(CANDIDATE_ORDER):
+        artifact["status"] = "incomplete"
+    elif any(sample.get("status") != "completed" for sample in matrix_samples):
+        artifact["status"] = "completed_with_errors"
+    else:
+        artifact["status"] = "completed"
     matrix_path = save_matrix(matrices_directory, artifact)
 
     print("AivisSpeech concurrency matrix")
     print("------------------------------\n")
     print(comparison.format_summary(matrix_samples))
+    print(f"\nMatrix status: {artifact['status']}")
     print("\nComparability: " + ("OK" if not warnings else "NOT COMPARABLE"))
     print(f"\nMatrix:\n{matrix_path}")
-    return artifact, matrix_path, 0
+    return artifact, matrix_path, 0 if not warnings else 1
 
 
 def main(argv: list[str] | None = None) -> int:
