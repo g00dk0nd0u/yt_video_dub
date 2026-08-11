@@ -9,6 +9,7 @@ from typing import Any
 TOKEN_RE = re.compile(r"\S+")
 SENTENCE_END_RE = re.compile(r"[.!?][\]\)\"']*$")
 NON_SPEECH_CUES = {"[music]", "[applause]", "[laughter]"}
+MIN_TTS_UNIT_SECONDS = 0.75
 
 
 def _key(token: str) -> str:
@@ -37,6 +38,7 @@ def normalize_segments(
     pause_seconds: float = 1.0,
     max_words: int = 35,
     max_duration: float = 15.0,
+    min_tts_unit_seconds: float = MIN_TTS_UNIT_SECONDS,
 ) -> list[dict[str, Any]]:
     """Return ordered, non-overlapping utterances with raw-caption mappings."""
     stream: list[dict[str, Any]] = []
@@ -152,4 +154,49 @@ def normalize_segments(
         result["source_end"] = round(end, 3)
         result["available_duration"] = round(end - unit["source_start"], 3)
         normalized.append(result)
+    # Windows at or below the observed 0.2--0.71s failure class are not viable
+    # independent Japanese TTS units. Prefer the following contiguous unit,
+    # then the preceding one, without crossing a real pause or max_duration.
+    for unit in normalized:
+        unit["source_unit_ids"] = [unit["unit_id"]]
+        unit["coalesced"] = False
+    index = 0
+    while index < len(normalized):
+        unit = normalized[index]
+        duration = unit["source_end"] - unit["source_start"]
+        if duration > min_tts_unit_seconds:
+            index += 1
+            continue
+        candidates = []
+        if index + 1 < len(normalized):
+            candidates.append(index + 1)
+        if index > 0:
+            candidates.append(index - 1)
+        merged = False
+        for neighbor_index in candidates:
+            neighbor = normalized[neighbor_index]
+            left, right = sorted((unit, neighbor), key=lambda item: item["source_start"])
+            gap = right["source_start"] - left["source_end"]
+            outer_duration = right["source_end"] - left["source_start"]
+            if gap >= pause_seconds or outer_duration > max_duration:
+                continue
+            combined = {
+                **left,
+                "source_end": right["source_end"],
+                "available_duration": round(outer_duration, 3),
+                "source_text": left["source_text"] + " " + right["source_text"],
+                "source_segment_ids": list(dict.fromkeys(
+                    left["source_segment_ids"] + right["source_segment_ids"])),
+                "source_unit_ids": left["source_unit_ids"] + right["source_unit_ids"],
+                "coalesced": True,
+            }
+            low, high = sorted((index, neighbor_index))
+            normalized[low : high + 1] = [combined]
+            index = max(0, low - 1)
+            merged = True
+            break
+        if not merged:
+            index += 1
+    for index, unit in enumerate(normalized, start=1):
+        unit["unit_id"] = f"utt_{index:04}"
     return normalized
