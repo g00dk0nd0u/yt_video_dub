@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Experimental one-command Codex CLI + Edge TTS YouTube dub route."""
+"""One-command Codex CLI + Edge TTS YouTube dub route with hard quality gates."""
 
 from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
 import sys
 from pathlib import Path
+from time import monotonic
 from urllib.parse import parse_qs, urlparse
-
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIR = REPO_ROOT / "scripts"
@@ -18,12 +19,11 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 def _load(filename: str):
     path = SCRIPT_DIR / filename
-    name = f"experimental_dub_{filename.replace('.', '_').replace('-', '_')}"
-    spec = importlib.util.spec_from_file_location(name, path)
+    spec = importlib.util.spec_from_file_location(f"experimental_{filename.replace('.', '_')}", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Failed to load pipeline stage: {filename}")
     module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -41,74 +41,140 @@ def _video_id(url: str) -> str:
     return ""
 
 
-def _stage(name: str, callback) -> None:
-    try:
-        result = callback()
-        if result not in (None, 0) and not isinstance(result, dict):
-            raise RuntimeError(f"stage returned exit code {result}")
-    except Exception as exc:
-        raise RuntimeError(f"{name} failed: {exc}") from exc
+def _json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _tts_quality(manifest: dict) -> tuple[dict, list[dict]]:
+    metrics = manifest.get("run_metrics", {})
+    failed, ng = int(metrics.get("failed_units", 0)), int(metrics.get("fit_ng_count", 0))
+    if failed:
+        raise RuntimeError(f"TTS failed_units={failed}")
+    problems = [item for item in manifest.get("items", []) if item.get("fit_status") == "ng"]
+    if ng != len(problems):
+        raise RuntimeError("TTS fit metrics are inconsistent")
+    return metrics, problems
+
+
+def _audio_quality(manifest: dict) -> dict:
+    items = manifest.get("items", [])
+    qa = {"warnings_count": int(manifest.get("warnings_count", 0)),
+          "clipped_count": sum(bool(x.get("clipped")) for x in items),
+          "overflow_count": sum(x.get("timing_status") == "overflow_clipped" for x in items)}
+    if any(qa.values()):
+        raise RuntimeError("Audio QA rejected clipped or overflowing audio: " + str(qa))
+    return qa
 
 
 def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural",
-        stages: dict | None = None) -> Path:
+        max_repair_rounds: int = 2, stages: dict | None = None) -> Path:
+    from path_layout import build_job_paths
+    from run_diagnostics import RunReport
+
     job_id = _video_id(url)
     if not job_id:
         raise RuntimeError("Prepare failed: YouTube URLから動画IDを取得できませんでした。")
+    paths = build_job_paths(output_dir, job_id)
+    report = RunReport(output_dir, job_id, url)
+    injected = stages is not None
     if stages is None:
-        from path_layout import build_job_paths
         from providers import translation_provider
-
-        paths = build_job_paths(output_dir, job_id)
-        prepare = _load("run_prepare.py")
-        build = _load("04_build_translated_segments.py")
-        preflight = _load("05_preflight_local_run.py")
-        edge = _load("06_generate_edge_tts_segments.py")
-        audio = _load("07_build_dub_audio.py")
-        mux = _load("08_mux_video.py")
+        from providers.translation.codex_cli import repair_translations
+        prepare, build = _load("run_prepare.py"), _load("04_build_translated_segments.py")
+        preflight, edge = _load("05_preflight_local_run.py"), _load("06_generate_edge_tts_segments.py")
+        audio, mux = _load("07_build_dub_audio.py"), _load("08_mux_video.py")
         common = ["--job-id", job_id, "--output-dir", output_dir]
         stages = {
-            "Prepare": lambda: prepare.main(["--youtube-url", url, "--output-dir", output_dir]),
+            "Prepare": lambda: prepare.main(["--youtube-url", url, "--output-dir", output_dir, "--quiet"]),
             "Translation": lambda: translation_provider("codex_cli")(
                 input_dir=paths.translation_input_dir, output_dir=paths.translation_output_dir,
-                manifest_path=paths.translation_manifest_path,
-                rules_path=REPO_ROOT / "docs/translation_mode.md"),
-            "Build": lambda: build.main(common),
-            "Preflight": lambda: preflight.main(common),
-            "TTS": lambda: edge.main(common + ["--voice", voice, "--resume"]),
-            "Audio": lambda: audio.main(common),
-            "Mux": lambda: mux.main(common),
+                manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md"),
+            "Build": lambda: build.main(common), "Preflight": lambda: preflight.main(common),
+            "TTS": lambda: edge.generate_job(job_id=job_id, output_dir=output_dir, voice=voice, resume=True),
+            "Repair": lambda: repair_translations(retry_path=paths.duration_retry_required_path,
+                input_dir=paths.translation_input_dir, output_dir=paths.translation_output_dir,
+                manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md"),
+            "Audio": lambda: audio.main(common), "Mux": lambda: mux.main(common),
         }
-        final_path = paths.dubbed_video_path
-    else:
-        final_path = Path(output_dir) / job_id / "dubbed_video.mp4"
-    for name in ("Prepare", "Translation", "Build", "Preflight", "TTS", "Audio", "Mux"):
-        _stage(name, stages[name])
-    return final_path
+    last_success = "none"
+    current = "Prepare"
+    try:
+        for name in ("Prepare", "Translation", "Build", "Preflight", "TTS"):
+            current, started = name, monotonic()
+            result = stages[name]()
+            if result not in (None, 0) and not isinstance(result, dict):
+                raise RuntimeError(f"stage returned exit code {result}")
+            report.stage(name, "OK", monotonic() - started, result if isinstance(result, dict) else "")
+            print(f"{name:.<16} OK  {monotonic() - started:.1f}s")
+            last_success = name
+            if name == "Translation" and isinstance(result, dict):
+                report.data["translation"] = {key: result[key] for key in ("chunk_count", "segment_count") if key in result}
+        manifest = result if isinstance(result, dict) and "run_metrics" in result else (_json(paths.tts_manifest_path) if paths.tts_manifest_path.exists() else {})
+        metrics, problems = _tts_quality(manifest)
+        report.data["tts"] = metrics
+        report.data["quality_problems"] = list(problems)
+        round_number = 0
+        while problems and round_number < max_repair_rounds:
+            round_number += 1
+            current, started = f"Repair #{round_number}", monotonic()
+            if injected and "Repair" not in stages:
+                raise RuntimeError("TTS contains NG segments and no repair stage is configured")
+            changes = stages["Repair"]()
+            if not injected:
+                stages["Build"]()
+            before = {x["segment_id"]: x for x in problems}
+            tts_result = stages["TTS"]()
+            manifest = tts_result if isinstance(tts_result, dict) else _json(paths.tts_manifest_path)
+            metrics, problems = _tts_quality(manifest)
+            after = {x["segment_id"]: x for x in manifest.get("items", [])}
+            for change in changes or []:
+                old, new = before.get(change["segment_id"], {}), after.get(change["segment_id"], {})
+                report.data["repairs"].append({"repair_round": round_number, **change,
+                    "duration_before": old.get("final_tts_duration"), "duration_after": new.get("final_tts_duration"),
+                    "final_fit_status": new.get("fit_status")})
+            report.stage(current, "OK", monotonic() - started, f"remaining_ng={len(problems)}")
+            print(f"{current:.<16} OK  remaining NG={len(problems)}")
+            last_success = current
+        report.data["tts"] = metrics
+        # Keep the original failure evidence even when repair succeeds.
+        known = {x.get("segment_id") for x in report.data["quality_problems"]}
+        report.data["quality_problems"].extend(x for x in problems if x.get("segment_id") not in known)
+        if problems:
+            raise RuntimeError(f"fit_ng_count={len(problems)} after {max_repair_rounds} repair rounds")
+        for name in ("Audio",):
+            current, started = name, monotonic(); result = stages[name]()
+            if result not in (None, 0) and not isinstance(result, dict): raise RuntimeError(f"stage returned exit code {result}")
+            report.stage(name, "OK", monotonic() - started); last_success = name
+            print(f"{name:.<16} OK  {monotonic() - started:.1f}s")
+        current, started = "Audio QA", monotonic()
+        audio_manifest = _json(paths.dub_audio_manifest_path) if paths.dub_audio_manifest_path.exists() else {}
+        qa = _audio_quality(audio_manifest)
+        report.data["audio_qa"] = qa; report.stage(current, "OK", monotonic() - started, qa); last_success = current
+        print(f"{current:.<16} OK")
+        current, started = "Mux", monotonic(); result = stages["Mux"]()
+        if result not in (None, 0) and not isinstance(result, dict): raise RuntimeError(f"stage returned exit code {result}")
+        report.stage(current, "OK", monotonic() - started); last_success = current
+        print(f"{current:.<16} OK  {monotonic() - started:.1f}s")
+        report.finalize(success=True, video=paths.dubbed_video_path)
+        return paths.dubbed_video_path
+    except Exception as exc:
+        report.stage(current, "FAILED", 0, exc)
+        report.finalize(success=False, failure={"failed_stage": current, "error_type": type(exc).__name__,
+            "message": exc, "last_successful_stage": last_success, "same_command_can_resume": True})
+        raise RuntimeError(f"{current} failed: {exc}") from exc
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--url")
-    parser.add_argument("--output-dir", default="output")
-    parser.add_argument("--voice", default="ja-JP-KeitaNeural")
-    args = parser.parse_args(argv)
-    os.chdir(REPO_ROOT)
+    parser.add_argument("--url"); parser.add_argument("--output-dir", default="output")
+    parser.add_argument("--voice", default="ja-JP-KeitaNeural"); parser.add_argument("--max-repair-rounds", type=int, default=2)
+    args = parser.parse_args(argv); os.chdir(REPO_ROOT)
     url = args.url or input("YouTube URLを貼ってください:\n> ").strip()
-    if not url:
-        print("入力が空だったため終了しました。")
-        return 1
-    try:
-        video = run(url, output_dir=args.output_dir, voice=args.voice)
-    except RuntimeError as exc:
-        print(exc)
-        return 1
-    print("\nCompleted.")
-    print("Translation: codex_cli")
-    print("TTS: edge")
-    print(f"Video: {video.as_posix()}")
+    if not url: print("入力が空だったため終了しました。"); return 1
+    try: video = run(url, output_dir=args.output_dir, voice=args.voice, max_repair_rounds=args.max_repair_rounds)
+    except RuntimeError as exc: print(exc); print(f"Diagnostic: {Path(args.output_dir) / 'latest_run.txt'}"); return 1
+    print(f"\nCompleted.\nVideo: {video.as_posix()}\nDiagnostic: {Path(args.output_dir) / 'latest_run.txt'}")
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+if __name__ == "__main__": raise SystemExit(main())
