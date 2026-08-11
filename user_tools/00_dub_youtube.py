@@ -8,6 +8,8 @@ import importlib.util
 import json
 import os
 import sys
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 from time import monotonic
 from urllib.parse import parse_qs, urlparse
@@ -15,6 +17,61 @@ from urllib.parse import parse_qs, urlparse
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
+
+MALE_VOICE = "ja-JP-KeitaNeural"
+FEMALE_VOICE = "ja-JP-NanamiNeural"
+SPINNER_STAGES = {"Prepare", "Translation", "TTS", "Repair", "Mux"}
+
+
+@contextmanager
+def _spinner(label: str, *, interval: float = 1.2):
+    """Show a low-frequency, single-line spinner when stdout is interactive."""
+    enabled = bool(getattr(sys.stdout, "isatty", lambda: False)())
+    stop = threading.Event()
+    thread = None
+
+    def animate() -> None:
+        frames = ("◐", "◓", "◑", "◒")
+        index = 0
+        while not stop.is_set():
+            try:
+                sys.stdout.write(f"\r{label:.<16} {frames[index % len(frames)]}")
+                sys.stdout.flush()
+            except (OSError, ValueError):
+                return
+            index += 1
+            stop.wait(interval)
+
+    if enabled:
+        thread = threading.Thread(target=animate, name="dub-stage-spinner", daemon=True)
+        thread.start()
+    try:
+        yield
+    finally:
+        if thread is not None:
+            stop.set()
+            thread.join()
+            try:
+                sys.stdout.write("\r" + " " * 20 + "\r")
+                sys.stdout.flush()
+            except (OSError, ValueError):
+                pass
+
+
+def _call_stage(name: str, callback):
+    with _spinner(name if not name.startswith("Repair #") else "Repair"):
+        return callback()
+
+
+def _select_voice() -> str:
+    print("日本語音声を選んでください:\n\n1. 男性\n2. 女性")
+    while True:
+        selection = input("\n> ").strip()
+        if selection in ("", "1"):
+            return MALE_VOICE
+        if selection == "2":
+            return FEMALE_VOICE
+        print("1 または 2 を入力してください。")
 
 
 def _load(filename: str):
@@ -134,7 +191,7 @@ def _mux_diagnostics(manifest: dict) -> dict:
     return {field: manifest[field] for field in fields if field in manifest}
 
 
-def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural",
+def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
         max_repair_rounds: int = 5, stages: dict | None = None) -> Path:
     from path_layout import build_job_paths
     from run_diagnostics import RunReport
@@ -169,7 +226,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
     try:
         for name in ("Prepare", "Translation", "Build", "Preflight", "TTS"):
             current, started = name, monotonic()
-            result = stages[name]()
+            result = (_call_stage(name, stages[name]) if name in SPINNER_STAGES else stages[name]())
             if result not in (None, 0) and not isinstance(result, dict):
                 raise RuntimeError(f"stage returned exit code {result}")
             stage_result = (_acquisition_summary(paths.job_json_path) if name == "Prepare"
@@ -190,11 +247,14 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
             current, started = f"Repair #{round_number}", monotonic()
             if injected and "Repair" not in stages:
                 raise RuntimeError("TTS contains NG segments and no repair stage is configured")
-            changes = stages["Repair"]()
-            if not injected:
-                stages["Build"]()
+            def repair_round():
+                changes = stages["Repair"]()
+                if not injected:
+                    stages["Build"]()
+                return changes, stages["TTS"]()
+
+            changes, tts_result = _call_stage(current, repair_round)
             before = {x["segment_id"]: x for x in problems}
-            tts_result = stages["TTS"]()
             manifest = tts_result if isinstance(tts_result, dict) else _json(paths.tts_manifest_path)
             _record_tts_diagnostics(report, manifest)
             metrics, problems = _tts_quality(manifest)
@@ -241,7 +301,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
         qa = _audio_quality(audio_manifest)
         report.data["audio_qa"] = qa; report.stage(current, "OK", monotonic() - started, qa); last_success = current
         print(f"{current:.<16} OK")
-        current, started = "Mux", monotonic(); result = stages["Mux"]()
+        current, started = "Mux", monotonic(); result = _call_stage("Mux", stages["Mux"])
         if result not in (None, 0) and not isinstance(result, dict): raise RuntimeError(f"stage returned exit code {result}")
         mux_manifest_path = paths.audio_dir / "fast_mux_manifest.json"
         mux_manifest = (result if isinstance(result, dict) else
@@ -260,14 +320,15 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url"); parser.add_argument("--output-dir", default="output")
-    parser.add_argument("--voice", default="ja-JP-KeitaNeural"); parser.add_argument("--max-repair-rounds", type=int, default=5)
+    parser.add_argument("--voice"); parser.add_argument("--max-repair-rounds", type=int, default=5)
     args = parser.parse_args(argv); os.chdir(REPO_ROOT)
     url = args.url or input("YouTube URLを貼ってください:\n> ").strip()
     if not url: print("入力が空だったため終了しました。"); return 1
     if not _canonical_youtube_input(url)[1]:
         print("Prepare failed: YouTube URLから動画IDを取得できませんでした。")
         return 1
-    try: video = run(url, output_dir=args.output_dir, voice=args.voice, max_repair_rounds=args.max_repair_rounds)
+    voice = args.voice or (_select_voice() if args.url is None else MALE_VOICE)
+    try: video = run(url, output_dir=args.output_dir, voice=voice, max_repair_rounds=args.max_repair_rounds)
     except RuntimeError as exc: print(exc); print(f"Diagnostic: {Path(args.output_dir) / 'latest_run.txt'}"); return 1
     print(f"\nCompleted.\nVideo: {video.as_posix()}\nDiagnostic: {Path(args.output_dir) / 'latest_run.txt'}")
     return 0
