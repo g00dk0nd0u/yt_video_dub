@@ -142,6 +142,22 @@ def test_remaining_ng_after_limit_never_muxes(tmp_path):
     assert "Audio" not in calls and "Mux" not in calls
 
 
+def test_unchanged_repair_stops_without_second_codex_call(tmp_path):
+    module = _module(); calls = []
+    ng = {"run_metrics": {"failed_units": 0, "fit_ng_count": 1}, "items": [
+        {"segment_id": "x", "text": "same", "fit_status": "ng", "final_tts_duration": 2.0}]}
+    stages = {name: (lambda name=name: calls.append(name)) for name in
+              ("Prepare", "Translation", "Build", "Preflight", "Audio", "Mux")}
+    stages["TTS"] = lambda: ng
+    stages["Repair"] = lambda: calls.append("Repair") or [{"segment_id": "x",
+        "text_before": "same", "text_after": "same"}]
+    with pytest.raises(RuntimeError, match="fit_ng_count=1"):
+        module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
+    assert calls.count("Repair") == 1
+    assert "no_progress_reason" in (tmp_path / "latest_run.txt").read_text()
+    assert "Audio" not in calls and "Mux" not in calls
+
+
 def test_tts_stage_summary_does_not_duplicate_segment_items():
     module = _module()
     result = module._stage_result("TTS", {"tts_provider": "edge", "items": [
