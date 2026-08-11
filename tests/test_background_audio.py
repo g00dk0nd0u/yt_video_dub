@@ -163,6 +163,48 @@ def test_default_background_volume_is_minus_six_db(tmp_path):
     assert _args(tmp_path).background_db == -6.0
 
 
+def test_current_interpreter_demucs_is_used_without_activated_path(tmp_path, monkeypatch):
+    args = _args(tmp_path)
+    monkeypatch.setattr(background.importlib.util, "find_spec", lambda name: object())
+    monkeypatch.setattr(background.shutil, "which", lambda _value: None)
+
+    assert background._demucs_prefix(args) == [sys.executable, "-m", "demucs"]
+
+
+def test_explicit_demucs_python_takes_precedence(tmp_path, monkeypatch):
+    args = background.build_parser().parse_args([
+        "--job-id", "job", "--output-dir", str(tmp_path),
+        "--demucs-python", sys.executable, "--demucs-bin", "custom-demucs",
+    ])
+    monkeypatch.setattr(background.importlib.util, "find_spec", lambda name: object())
+
+    assert background._demucs_prefix(args) == [sys.executable, "-m", "demucs"]
+
+
+def test_explicit_demucs_bin_is_used_before_current_interpreter(tmp_path, monkeypatch):
+    args = background.build_parser().parse_args([
+        "--job-id", "job", "--output-dir", str(tmp_path),
+        "--demucs-bin", "custom-demucs",
+    ])
+    monkeypatch.setattr(background.importlib.util, "find_spec", lambda name: object())
+    monkeypatch.setattr(
+        background.shutil, "which",
+        lambda value: "/tools/custom-demucs" if value == "custom-demucs" else None,
+    )
+
+    assert background._demucs_prefix(args) == ["/tools/custom-demucs"]
+
+
+def test_path_demucs_is_used_when_current_interpreter_has_no_module(tmp_path, monkeypatch):
+    args = _args(tmp_path)
+    monkeypatch.setattr(background.importlib.util, "find_spec", lambda name: None)
+    monkeypatch.setattr(
+        background.shutil, "which", lambda value: "/usr/bin/demucs" if value == "demucs" else None,
+    )
+
+    assert background._demucs_prefix(args) == ["/usr/bin/demucs"]
+
+
 @pytest.mark.parametrize("audio_format", [
     {"codec_name": "aac", "sample_rate": "24000", "channels": 2},
     {"codec_name": "aac", "sample_rate": "48000", "channels": 1},
@@ -217,6 +259,7 @@ def test_source_change_invalidates_separation_cache(tmp_path, monkeypatch):
 
 def test_missing_demucs_fails_cleanly_without_output(tmp_path, monkeypatch, capsys):
     job = _job(tmp_path)
+    monkeypatch.setattr(background.importlib.util, "find_spec", lambda name: None)
     monkeypatch.setattr(background.shutil, "which", lambda _value: None)
 
     result = background.main(["--job-id", "job", "--output-dir", str(tmp_path), "--quiet"])

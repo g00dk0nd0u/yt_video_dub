@@ -29,8 +29,11 @@ python user_tools/10_add_background_audio.py --job-id VIDEO_ID --background-db -
 
 Demucs-related packages are not required dependencies in the standard
 `requirements.txt`. They may be installed in the same `.venv` when its Python
-version and platform are compatible. A separately managed, Demucs-compatible
-Python environment remains supported by providing its interpreter explicitly:
+version and platform are compatible. When the tool is run directly with that
+environment's Python (for example, `.venv/bin/python`), it automatically uses
+the Demucs module from the same environment even if the venv is not activated.
+A separately managed, Demucs-compatible Python environment remains supported
+by providing its interpreter explicitly:
 
 ```bash
 python user_tools/10_add_background_audio.py \
