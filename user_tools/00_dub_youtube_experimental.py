@@ -193,6 +193,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv); os.chdir(REPO_ROOT)
     url = args.url or input("YouTube URLを貼ってください:\n> ").strip()
     if not url: print("入力が空だったため終了しました。"); return 1
+    if not _video_id(url):
+        print("Prepare failed: YouTube URLから動画IDを取得できませんでした。")
+        return 1
     try: video = run(url, output_dir=args.output_dir, voice=args.voice, max_repair_rounds=args.max_repair_rounds)
     except RuntimeError as exc: print(exc); print(f"Diagnostic: {Path(args.output_dir) / 'latest_run.txt'}"); return 1
     print(f"\nCompleted.\nVideo: {video.as_posix()}\nDiagnostic: {Path(args.output_dir) / 'latest_run.txt'}")
