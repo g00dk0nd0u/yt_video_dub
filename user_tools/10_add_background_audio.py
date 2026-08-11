@@ -18,7 +18,7 @@ from time import monotonic
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_BACKGROUND_DB = -12.0
+DEFAULT_BACKGROUND_DB = -6.0
 DEFAULT_MODEL = "htdemucs"
 BACKEND = "demucs-two-stems-vocals"
 
@@ -79,6 +79,28 @@ def _probe_duration(ffprobe_bin: str, path: Path) -> float:
     if duration <= 0:
         raise BackgroundAudioError(f"Invalid duration for: {path}")
     return duration
+
+
+def _probe_audio_format(ffprobe_bin: str, path: Path) -> dict[str, object]:
+    result = _run([
+        ffprobe_bin, "-v", "error", "-select_streams", "a:0",
+        "-show_entries", "stream=codec_name,sample_rate,channels", "-of", "json", str(path),
+    ])
+    try:
+        stream = json.loads(result.stdout)["streams"][0]
+        audio_format = {
+            "codec_name": stream["codec_name"],
+            "sample_rate": int(stream["sample_rate"]),
+            "channels": int(stream["channels"]),
+        }
+    except (IndexError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise BackgroundAudioError(f"Could not determine final audio format: {path}") from exc
+    expected = {"codec_name": "aac", "sample_rate": 48000, "channels": 2}
+    if audio_format != expected:
+        raise BackgroundAudioError(
+            f"Invalid final audio format: expected {expected}, got {audio_format}"
+        )
+    return audio_format
 
 
 def _demucs_prefix(args: argparse.Namespace) -> list[str]:
@@ -180,16 +202,20 @@ def add_background_audio(args: argparse.Namespace) -> Path:
             _separate(args, source, cache_dir, identity)
         duration = _probe_duration(args.ffprobe_bin, standard)
         filter_graph = (
-            f"[2:a:0]volume={args.background_db:g}dB[background];"
-            f"[1:a:0][background]amix=inputs=2:duration=longest:normalize=0,"
-            f"apad,atrim=duration={duration:.6f}[mixed]"
+            "[1:a:0]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo[dub];"
+            "[2:a:0]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo,"
+            f"volume={args.background_db:g}dB[background];"
+            f"[dub][background]amix=inputs=2:duration=longest:normalize=0,"
+            f"apad,atrim=duration={duration:.6f},aresample=48000,"
+            "aformat=sample_rates=48000:channel_layouts=stereo[mixed]"
         )
         temporary_output.unlink(missing_ok=True)
         command = [
             args.ffmpeg_bin, "-y", "-i", str(standard), "-i", str(dub_audio),
             "-i", str(cache_dir / "accompaniment.wav"), "-filter_complex", filter_graph,
             "-map", "0:v:0", "-map", "[mixed]", "-c:v", "copy", "-c:a", "aac",
-            "-movflags", "+faststart", "-t", f"{duration:.6f}", str(temporary_output),
+            "-ar", "48000", "-ac", "2", "-movflags", "+faststart",
+            "-t", f"{duration:.6f}", str(temporary_output),
         ]
         _run(command, quiet=args.quiet)
         _require_file(temporary_output, "temporary output")
@@ -198,8 +224,10 @@ def add_background_audio(args: argparse.Namespace) -> Path:
             raise BackgroundAudioError(
                 f"Final duration mismatch: expected {duration:.3f}s, got {final_duration:.3f}s"
             )
+        final_audio_format = _probe_audio_format(args.ffprobe_bin, temporary_output)
         manifest.update({"cache_reused": cache_reused, "final_duration": final_duration,
-                         "success": True, "ffmpeg_command": command})
+                         "final_audio_format": final_audio_format, "success": True,
+                         "ffmpeg_command": command})
         manifest["elapsed_time_seconds"] = round(monotonic() - started, 3)
         temporary_manifest.write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
