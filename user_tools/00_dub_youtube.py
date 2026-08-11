@@ -19,7 +19,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 def _load(filename: str):
     path = SCRIPT_DIR / filename
-    spec = importlib.util.spec_from_file_location(f"experimental_{filename.replace('.', '_')}", path)
+    spec = importlib.util.spec_from_file_location(f"default_workflow_{filename.replace('.', '_')}", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Failed to load pipeline stage: {filename}")
     module = importlib.util.module_from_spec(spec)
@@ -28,10 +28,23 @@ def _load(filename: str):
     return module
 
 
-def _video_id(url: str) -> str:
+def _canonical_youtube_input(value: str) -> tuple[str, str]:
+    """Return a canonical watch URL and video ID for a URL or bare ID."""
+    value = value.strip()
+    if len(value) == 11 and all(char.isalnum() or char in "-_" for char in value):
+        return f"https://www.youtube.com/watch?v={value}", value
+    video_id = _video_id_from_url(value)
+    if not video_id:
+        return value, ""
+    return f"https://www.youtube.com/watch?v={video_id}", video_id
+
+
+def _video_id_from_url(url: str) -> str:
     parsed = urlparse(url.strip())
     if parsed.hostname in {"youtu.be", "www.youtu.be"}:
         return parsed.path.strip("/").split("/")[0]
+    if parsed.hostname not in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
+        return ""
     value = parse_qs(parsed.query).get("v", [""])[0]
     if value:
         return value
@@ -126,7 +139,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
     from path_layout import build_job_paths
     from run_diagnostics import RunReport
 
-    job_id = _video_id(url)
+    url, job_id = _canonical_youtube_input(url)
     if not job_id:
         raise RuntimeError("Prepare failed: YouTube URLから動画IDを取得できませんでした。")
     paths = build_job_paths(output_dir, job_id)
@@ -251,7 +264,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv); os.chdir(REPO_ROOT)
     url = args.url or input("YouTube URLを貼ってください:\n> ").strip()
     if not url: print("入力が空だったため終了しました。"); return 1
-    if not _video_id(url):
+    if not _canonical_youtube_input(url)[1]:
         print("Prepare failed: YouTube URLから動画IDを取得できませんでした。")
         return 1
     try: video = run(url, output_dir=args.output_dir, voice=args.voice, max_repair_rounds=args.max_repair_rounds)

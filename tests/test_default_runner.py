@@ -6,8 +6,8 @@ import json
 
 
 def _module():
-    path = Path(__file__).parents[1] / "user_tools/00_dub_youtube_experimental.py"
-    spec = importlib.util.spec_from_file_location("experimental_runner", path)
+    path = Path(__file__).parents[1] / "user_tools/00_dub_youtube.py"
+    spec = importlib.util.spec_from_file_location("default_runner", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -268,3 +268,21 @@ def test_failed_tts_details_are_diagnostic_and_stop_audio_mux(tmp_path):
     assert "FAILED TTS ITEMS" in diagnostic
     assert "utt_0002" in diagnostic
     assert "provider_internal" not in diagnostic
+
+
+def test_bare_video_id_is_canonicalized(tmp_path):
+    module = _module()
+    captured = {}
+    stages = {name: (lambda: None) for name in
+              ("Translation", "Build", "Preflight", "Audio", "Mux")}
+    stages["Prepare"] = lambda: captured.update(url="called")
+    stages["TTS"] = lambda: {"run_metrics": {"failed_units": 0, "fit_ng_count": 0}, "items": []}
+    def audio():
+        path = tmp_path / "OEkxKdhtQng/07_audio/dub_audio_manifest.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({"warnings_count": 0, "items": []}))
+    stages["Audio"] = audio
+    result = module.run("OEkxKdhtQng", output_dir=str(tmp_path), stages=stages)
+    summary = json.loads((tmp_path / "OEkxKdhtQng/run_summary.json").read_text())
+    assert result == tmp_path / "OEkxKdhtQng/dubbed_video.mp4"
+    assert summary["run"]["input_url"] == "https://www.youtube.com/watch?v=OEkxKdhtQng"

@@ -24,7 +24,7 @@ H264_PRESET = "medium"
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Mux source.mp4 with dub_audio.wav into 09_simple_mux/dubbed_video.mp4."
+        description="Mux source.mp4 with dub_audio.wav into dubbed_video.mp4."
     )
     parser.add_argument(
         "--job-id",
