@@ -59,6 +59,7 @@ def test_repair_prompt_prioritizes_spoken_duration_and_japanese_shortening(tmp_p
 
     prompt = commands[0][-1]
     assert "strict maximum" in prompt
+    assert "shorter than the previous round" in prompt
     assert "reduce spoken duration" in prompt
     assert "よね" in prompt
 
