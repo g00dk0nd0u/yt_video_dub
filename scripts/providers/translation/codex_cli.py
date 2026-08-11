@@ -38,6 +38,10 @@ def translate_job(
         )
     manifest = load_manifest(manifest_path)
     chunk_names = [chunk["file"] for chunk in manifest["chunks"]]
+    original_sources = {
+        name: load_jsonl(input_dir / name)
+        for name in chunk_names
+    }
     with tempfile.TemporaryDirectory(prefix="yt_video_dub_translation_") as temporary:
         workspace = Path(temporary)
         isolated_input = workspace / "input"
@@ -48,8 +52,8 @@ def translate_job(
         for name in chunk_names:
             shutil.copy2(input_dir / name, isolated_input / name)
         result = runner(
-            [executable, "exec", "--ephemeral", "--sandbox", "workspace-write", "-C",
-             str(workspace), _task_text()],
+            [executable, "exec", "--ephemeral", "--sandbox", "workspace-write",
+             "--skip-git-repo-check", "-C", str(workspace), _task_text()],
             cwd=workspace, capture_output=True, text=True,
         )
         if result.returncode != 0:
@@ -61,11 +65,10 @@ def translate_job(
         validated: dict[str, str] = {}
         try:
             for name in chunk_names:
-                source_path = isolated_input / name
+                source_path = input_dir / name
                 translated_path = isolated_output / name
-                source = load_jsonl(source_path)
                 translated = load_jsonl(translated_path)
-                validate_chunk_pair(source, translated, source_path, translated_path,
+                validate_chunk_pair(original_sources[name], translated, source_path, translated_path,
                                     reject_blank_translation=True)
                 validated[name] = translated_path.read_text(encoding="utf-8")
         except (FileNotFoundError, RuntimeError) as exc:
