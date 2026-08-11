@@ -151,6 +151,7 @@ def _acquire_youtube_source(youtube_url: str, source_dir: Path) -> tuple[Path, d
         return canonical, {"source_reused": True, "attempted_strategies": []}
     attempted: list[str] = []
     failures: list[str] = []
+    any_http_403 = False
     for strategy in ACQUISITION_STRATEGIES:
         attempted.append(strategy.name)
         try:
@@ -160,12 +161,13 @@ def _acquire_youtube_source(youtube_url: str, source_dir: Path) -> tuple[Path, d
                             "successful_strategy": strategy.name}
         except SourceAcquisitionError as exc:
             exc.attempted = attempted.copy()
+            any_http_403 = any_http_403 or exc.http_403
             failures.append(f"{strategy.name}:{exc.stage}:http_403={str(exc.http_403).lower()}")
             # Only a 403 from the primary download permits the one fallback.
             if strategy is PRIMARY_STRATEGY and exc.stage == "download" and exc.http_403:
                 continue
             raise SourceAcquisitionError(exc.stage, exc.concise_error, strategy=exc.strategy,
-                                         http_403=exc.http_403, attempted=attempted,
+                                         http_403=any_http_403, attempted=attempted,
                                          failures=failures) from exc
     raise AssertionError("bounded acquisition strategy ladder exhausted unexpectedly")
 
