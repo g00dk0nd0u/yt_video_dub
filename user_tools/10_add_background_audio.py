@@ -81,6 +81,28 @@ def _probe_duration(ffprobe_bin: str, path: Path) -> float:
     return duration
 
 
+def _probe_audio_format(ffprobe_bin: str, path: Path) -> dict[str, object]:
+    result = _run([
+        ffprobe_bin, "-v", "error", "-select_streams", "a:0",
+        "-show_entries", "stream=codec_name,sample_rate,channels", "-of", "json", str(path),
+    ])
+    try:
+        stream = json.loads(result.stdout)["streams"][0]
+        audio_format = {
+            "codec_name": stream["codec_name"],
+            "sample_rate": int(stream["sample_rate"]),
+            "channels": int(stream["channels"]),
+        }
+    except (IndexError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise BackgroundAudioError(f"Could not determine final audio format: {path}") from exc
+    expected = {"codec_name": "aac", "sample_rate": 48000, "channels": 2}
+    if audio_format != expected:
+        raise BackgroundAudioError(
+            f"Invalid final audio format: expected {expected}, got {audio_format}"
+        )
+    return audio_format
+
+
 def _demucs_prefix(args: argparse.Namespace) -> list[str]:
     if args.demucs_python:
         if not Path(args.demucs_python).is_file() and not shutil.which(args.demucs_python):
@@ -202,8 +224,10 @@ def add_background_audio(args: argparse.Namespace) -> Path:
             raise BackgroundAudioError(
                 f"Final duration mismatch: expected {duration:.3f}s, got {final_duration:.3f}s"
             )
+        final_audio_format = _probe_audio_format(args.ffprobe_bin, temporary_output)
         manifest.update({"cache_reused": cache_reused, "final_duration": final_duration,
-                         "success": True, "ffmpeg_command": command})
+                         "final_audio_format": final_audio_format, "success": True,
+                         "ffmpeg_command": command})
         manifest["elapsed_time_seconds"] = round(monotonic() - started, 3)
         temporary_manifest.write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
