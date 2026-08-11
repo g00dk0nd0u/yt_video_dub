@@ -18,7 +18,7 @@ from time import monotonic
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_BACKGROUND_DB = -12.0
+DEFAULT_BACKGROUND_DB = -6.0
 DEFAULT_MODEL = "htdemucs"
 BACKEND = "demucs-two-stems-vocals"
 
@@ -180,16 +180,20 @@ def add_background_audio(args: argparse.Namespace) -> Path:
             _separate(args, source, cache_dir, identity)
         duration = _probe_duration(args.ffprobe_bin, standard)
         filter_graph = (
-            f"[2:a:0]volume={args.background_db:g}dB[background];"
-            f"[1:a:0][background]amix=inputs=2:duration=longest:normalize=0,"
-            f"apad,atrim=duration={duration:.6f}[mixed]"
+            "[1:a:0]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo[dub];"
+            "[2:a:0]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo,"
+            f"volume={args.background_db:g}dB[background];"
+            f"[dub][background]amix=inputs=2:duration=longest:normalize=0,"
+            f"apad,atrim=duration={duration:.6f},aresample=48000,"
+            "aformat=sample_rates=48000:channel_layouts=stereo[mixed]"
         )
         temporary_output.unlink(missing_ok=True)
         command = [
             args.ffmpeg_bin, "-y", "-i", str(standard), "-i", str(dub_audio),
             "-i", str(cache_dir / "accompaniment.wav"), "-filter_complex", filter_graph,
             "-map", "0:v:0", "-map", "[mixed]", "-c:v", "copy", "-c:a", "aac",
-            "-movflags", "+faststart", "-t", f"{duration:.6f}", str(temporary_output),
+            "-ar", "48000", "-ac", "2", "-movflags", "+faststart",
+            "-t", f"{duration:.6f}", str(temporary_output),
         ]
         _run(command, quiet=args.quiet)
         _require_file(temporary_output, "temporary output")
