@@ -309,6 +309,24 @@ def save_sample(directory: Path, sample: dict[str, Any]) -> Path:
             continue
 
 
+def run_benchmark_once(
+    *, job_id: str, benchmark_directory: Path,
+    workload: list[tuple[int, dict[str, Any]]], workers: int,
+    base_url: str, speaker_id: int, timeout: float,
+) -> tuple[dict[str, Any], Path]:
+    """Run and persist one benchmark against an already-resolved workload."""
+    started = time.perf_counter()
+    results = run_workload(
+        workload, workers,
+        lambda item: benchmark_unit(item, base_url, speaker_id, timeout),
+    )
+    elapsed = time.perf_counter() - started
+    sample = build_sample(
+        job_id, workers, base_url, speaker_id, workload, results, elapsed, timeout,
+    )
+    return sample, save_sample(benchmark_directory, sample)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     paths = build_job_paths(args.output_dir, args.job_id)
@@ -316,15 +334,12 @@ def main(argv: list[str] | None = None) -> int:
     workload = select_workload(segments, args.start_index, args.end_index,
                                args.limit, args.segment_ids)
     base_url = args.base_url.rstrip("/")
-    started = time.perf_counter()
-    results = run_workload(
-        workload, args.workers,
-        lambda item: benchmark_unit(item, base_url, args.speaker_id, args.timeout),
+    sample, path = run_benchmark_once(
+        job_id=args.job_id,
+        benchmark_directory=paths.metrics_dir / "concurrency_benchmarks",
+        workload=workload, workers=args.workers, base_url=base_url,
+        speaker_id=args.speaker_id, timeout=args.timeout,
     )
-    elapsed = time.perf_counter() - started
-    sample = build_sample(args.job_id, args.workers, base_url, args.speaker_id,
-                          workload, results, elapsed, args.timeout)
-    path = save_sample(paths.metrics_dir / "concurrency_benchmarks", sample)
     print(path)
     return 0 if sample["status"] == "completed" else 1
 

@@ -72,6 +72,15 @@ python3 scripts/91_run_local_tts_pipeline.py \
 
 `user_tools/99_cleanup.py` は `output/` 配下の動画フォルダだけを安全に削除します。
 
+開発・性能測定用に、translation preflight、warm-up、固定された 1/2/4 worker の
+AivisSpeech benchmark を一括実行できます（通常の動画生成手順ではありません）。
+
+```bash
+python3 scripts/94_run_tts_concurrency_matrix.py \
+  --job-id <video_id> \
+  --output-dir output
+```
+
 ## Fixed Output Layout
 
 ```
