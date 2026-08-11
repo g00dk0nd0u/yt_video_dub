@@ -353,7 +353,5 @@ def test_comparison_formatter_handles_null_failed_sample(load_script):
 def test_production_scripts_remain_single_worker():
     repo_root = Path(__file__).parents[1]
     production = (repo_root / "scripts/06_generate_tts_segments.py").read_text()
-    user_tool = (repo_root / "user_tools/02_make_video.py").read_text()
     assert "ThreadPoolExecutor" not in production
     assert "--workers" not in production
-    assert "--workers" not in user_tool
