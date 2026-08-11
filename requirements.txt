@@ -1,4 +1,5 @@
 colorama
+edge-tts
 huggingface-hub
 matplotlib
 moviepy

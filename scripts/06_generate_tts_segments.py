@@ -351,6 +351,8 @@ def _write_manifest(
 ) -> None:
     payload = {
         "job_id": job_id,
+        "tts_provider": "aivis",
+        "voice": str(speaker_id),
         "base_url": base_url,
         "speaker_id": speaker_id,
         "total_segments": total_segments,
@@ -394,6 +396,15 @@ def _is_reusable_tts(
 ) -> bool:
     """Return whether a cached WAV represents the current text, timing, and voice."""
     if existing_item is None:
+        return False
+    existing_provider = existing_manifest_settings.get("tts_provider", "aivis")
+    if existing_provider != current_settings.get("tts_provider", "aivis"):
+        return False
+    existing_voice = existing_manifest_settings.get(
+        "voice", str(existing_manifest_settings.get("speaker_id"))
+    )
+    current_voice = current_settings.get("voice", str(current_settings.get("speaker_id")))
+    if existing_voice != current_voice:
         return False
     for field in ("segment_id", "text", "start", "end"):
         if existing_item.get(field) != current_segment.get(field):
@@ -512,7 +523,8 @@ def main(argv: list[str] | None = None) -> int:
         for item in (existing_manifest_items or [])
         if isinstance(item.get("index"), int)
     }
-    current_settings = {"base_url": base_url, "speaker_id": args.speaker_id}
+    current_settings = {"tts_provider": "aivis", "voice": str(args.speaker_id),
+                        "base_url": base_url, "speaker_id": args.speaker_id}
     run_started = time.perf_counter()
     run_metrics: dict[str, Any] = {
         "selected_units": len(process_segments),
