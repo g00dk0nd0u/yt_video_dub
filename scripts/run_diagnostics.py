@@ -38,7 +38,8 @@ class RunReport:
             "environment": {"python": sys.version.split()[0], "codex_cli": _command_version(["codex", "--version"]),
                             "edge_tts": _command_version([sys.executable, "-m", "edge_tts", "--version"]),
                             "ffmpeg": _command_version(["ffmpeg", "-version"])},
-            "stages": [], "translation": {}, "tts": {}, "quality_problems": [],
+            "stages": [], "translation": {}, "tts": {}, "failed_tts_items": [],
+            "quality_problems": [],
             "repairs": [], "audio_qa": {}, "final": {"success": False},
         }
 
@@ -77,6 +78,7 @@ class RunReport:
         lines.append("STAGES")
         lines += [f"{x['name']}: {x['status']} ({x['elapsed_seconds']}s) {x['result']}" for x in self.data["stages"]]
         for key, title in (("translation", "TRANSLATION"), ("tts", "TTS"),
+                           ("failed_tts_items", "FAILED TTS ITEMS"),
                            ("quality_problems", "QUALITY PROBLEMS"), ("repairs", "REPAIR"),
                            ("audio_qa", "AUDIO QA"), ("final", "FINAL"), ("failure", "FAILURE")):
             if key not in self.data or not self.data[key]:
