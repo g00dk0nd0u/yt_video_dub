@@ -53,6 +53,80 @@ def test_fast_mux_command_keeps_video_timeline(load_script, tmp_path):
     assert "-shortest" not in command
 
 
+def test_h264_video_codec_keeps_copy_fast_path(tmp_path, load_script, monkeypatch):
+    module = load_script("08_mux_video.py")
+    source_codec = "h264"
+    job = tmp_path / "job"
+    (job / "01_source").mkdir(parents=True)
+    (job / "07_audio").mkdir()
+    (job / "01_source/source.mp4").touch()
+    (job / "07_audio/dub_audio.wav").touch()
+    codecs = iter([source_codec, source_codec])
+    monkeypatch.setattr(module, "_probe_video_stream",
+                        lambda *_: {"codec_name": next(codecs)})
+    commands = []
+    monkeypatch.setattr(module.subprocess, "run",
+                        lambda command, **kwargs: commands.append(command))
+
+    assert module.main(["--job-id", "job", "--output-dir", str(tmp_path), "--quiet"]) == 0
+
+    assert "-c:v copy" in " ".join(commands[0])
+    manifest = json.loads((job / "07_audio/fast_mux_manifest.json").read_text())
+    assert manifest["video_mode"] == "copy"
+    assert manifest["compatibility_fallback_used"] is False
+    assert "video_codec" not in manifest
+
+
+@pytest.mark.parametrize("source_codec", ["av1", "vp9", "hevc", "unknown"])
+def test_unsafe_video_codec_transcodes_and_validates_h264(
+    tmp_path, load_script, monkeypatch, source_codec
+):
+    module = load_script("08_mux_video.py")
+    job = tmp_path / "job"
+    (job / "01_source").mkdir(parents=True)
+    (job / "07_audio").mkdir()
+    (job / "01_source/source.mp4").touch()
+    (job / "07_audio/dub_audio.wav").touch()
+    codecs = iter([source_codec, "h264"])
+    monkeypatch.setattr(module, "_probe_video_stream",
+                        lambda *_: {"codec_name": next(codecs)})
+    commands = []
+    monkeypatch.setattr(module.subprocess, "run",
+                        lambda command, **kwargs: commands.append(command))
+
+    module.main(["--job-id", "job", "--output-dir", str(tmp_path), "--quiet"])
+
+    joined = " ".join(commands[0])
+    assert "-c:v libx264" in joined
+    assert "-pix_fmt yuv420p" in joined
+    assert "-movflags +faststart" in joined
+    assert "volume=-38.0dB" in joined
+    assert "-shortest" not in commands[0]
+    manifest = json.loads((job / "07_audio/fast_mux_manifest.json").read_text())
+    assert manifest["source_video_codec"] == source_codec
+    assert manifest["output_video_codec"] == "h264"
+    assert manifest["video_mode"] == "transcode"
+    assert manifest["compatibility_fallback_used"] is True
+    assert "video_codec" not in manifest
+
+
+def test_mux_rejects_incompatible_final_codec(tmp_path, load_script, monkeypatch):
+    module = load_script("08_mux_video.py")
+    job = tmp_path / "job"
+    (job / "01_source").mkdir(parents=True)
+    (job / "07_audio").mkdir()
+    (job / "01_source/source.mp4").touch()
+    (job / "07_audio/dub_audio.wav").touch()
+    codecs = iter(["av1", "av1"])
+    monkeypatch.setattr(module, "_probe_video_stream",
+                        lambda *_: {"codec_name": next(codecs)})
+    monkeypatch.setattr(module.subprocess, "run", lambda *args, **kwargs: None)
+
+    with pytest.raises(module.MuxVideoError, match="compatibility validation"):
+        module.main(["--job-id", "job", "--output-dir", str(tmp_path), "--quiet"])
+    assert not (job / "07_audio/fast_mux_manifest.json").exists()
+
+
 def test_legacy_transcript_path_fallback(tmp_path):
     from path_layout import build_job_paths
     legacy = tmp_path / "job/transcript_original.json"
