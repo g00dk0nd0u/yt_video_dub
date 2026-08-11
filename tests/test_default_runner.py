@@ -354,7 +354,7 @@ def test_repair_can_succeed_in_rounds_three_through_five(tmp_path, success_round
     assert "Audio" in calls and "Mux" in calls
 
 
-def test_unchanged_repair_stops_after_second_consecutive_result(tmp_path):
+def test_unchanged_repair_runs_all_five_rounds_before_fail_closed(tmp_path):
     module = _module(); calls = []
     ng = {"run_metrics": {"failed_units": 0, "fit_ng_count": 1}, "items": [
         {"segment_id": "x", "text": "same", "fit_status": "ng", "final_tts_duration": 2.0}]}
@@ -365,19 +365,28 @@ def test_unchanged_repair_stops_after_second_consecutive_result(tmp_path):
         "text_before": "same", "text_after": "same"}]
     with pytest.raises(RuntimeError, match="fit_ng_count=1"):
         module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
-    assert calls.count("Repair") == 2
-    assert "no_progress_reason" in (tmp_path / "latest_run.txt").read_text()
+    assert calls.count("Repair") == 5
     assert "Audio" not in calls and "Mux" not in calls
 
 
-def test_unchanged_repair_can_be_followed_by_shorter_success(tmp_path):
+def test_repairs_continue_through_unchanged_and_small_duration_improvements(tmp_path):
     module = _module(); calls = []
-    texts = iter([("最高ですよね。", "最高ですよね。"), ("最高ですよね。", "最高。")])
+    texts = iter([
+        ("最高ですよね。", "最高ですよね。"),
+        ("最高ですよね。", "最高ですよ。"),
+        ("最高ですよ。", "最高です。"),
+        ("最高です。", "最高。"),
+    ])
+    targets = iter([5, 4, 3, 2])
     tts_results = iter([
         {"run_metrics": {"failed_units": 0, "fit_ng_count": 1}, "items": [
             {"segment_id": "utt_0014", "fit_status": "ng", "final_tts_duration": 1.235375}]},
         {"run_metrics": {"failed_units": 0, "fit_ng_count": 1}, "items": [
             {"segment_id": "utt_0014", "fit_status": "ng", "final_tts_duration": 1.235375}]},
+        {"run_metrics": {"failed_units": 0, "fit_ng_count": 1}, "items": [
+            {"segment_id": "utt_0014", "fit_status": "ng", "final_tts_duration": 1.230375}]},
+        {"run_metrics": {"failed_units": 0, "fit_ng_count": 1}, "items": [
+            {"segment_id": "utt_0014", "fit_status": "ng", "final_tts_duration": 1.1}]},
         {"run_metrics": {"failed_units": 0, "fit_ng_count": 0}, "items": [
             {"segment_id": "utt_0014", "fit_status": "ok", "final_tts_duration": .8}]},
     ])
@@ -386,7 +395,7 @@ def test_unchanged_repair_can_be_followed_by_shorter_success(tmp_path):
         calls.append("Repair")
         before, after = next(texts)
         return [{"segment_id": "utt_0014", "text_before": before,
-                 "text_after": after, "target_chars": 5}]
+                 "text_after": after, "target_chars": next(targets)}]
 
     def audio():
         calls.append("Audio")
@@ -400,23 +409,33 @@ def test_unchanged_repair_can_be_followed_by_shorter_success(tmp_path):
 
     module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
 
-    assert calls.count("Repair") == 2
+    assert calls.count("Repair") == 4
     assert "Audio" in calls and "Mux" in calls
+    repairs = json.loads((tmp_path / "abc123/run_summary.json").read_text())["repairs"]
+    assert len(repairs) == 4
+    assert all({"repair_round", "segment_id", "text_before", "text_after", "target_chars",
+                "duration_before", "duration_after", "final_fit_status"} <= row.keys()
+               for row in repairs)
 
 
-def test_tighten_repair_target_is_materially_stricter(tmp_path):
+def test_tighten_repair_target_is_gradual_each_round(tmp_path):
     module = _module()
     retry = tmp_path / "duration_retry_required.jsonl"
     retry.write_text(json.dumps({"segment_id": "utt_0014", "target_chars": 5}) + "\n")
 
-    module._tighten_repair_targets(retry, {"utt_0014"})
+    targets = []
+    previous = 5
+    for _round in range(4):
+        module._tighten_repair_targets(retry, {"utt_0014": previous})
+        previous = json.loads(retry.read_text())["target_chars"]
+        targets.append(previous)
 
-    assert json.loads(retry.read_text())["target_chars"] == 3
+    assert targets == [4, 3, 2, 1]
 
 
-def test_duration_no_progress_stops_before_five_rounds(tmp_path):
+def test_duration_no_progress_runs_all_five_rounds(tmp_path):
     module = _module(); calls = []
-    durations = iter([2.0, 1.995])
+    durations = iter([2.0, 1.995, 1.99, 1.985, 1.98, 1.975])
 
     def tts():
         return {"run_metrics": {"failed_units": 0, "fit_ng_count": 1}, "items": [
@@ -428,10 +447,10 @@ def test_duration_no_progress_stops_before_five_rounds(tmp_path):
     stages.update(TTS=tts, Repair=lambda: calls.append("Repair") or [{
         "segment_id": "x", "text_before": "long", "text_after": "short"}])
 
-    with pytest.raises(RuntimeError, match="repair made no progress"):
+    with pytest.raises(RuntimeError, match="after 5 repair rounds"):
         module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
 
-    assert calls.count("Repair") == 1
+    assert calls.count("Repair") == 5
     assert "Audio" not in calls and "Mux" not in calls
 
 

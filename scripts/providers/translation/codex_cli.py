@@ -129,7 +129,8 @@ def repair_translations(
         repair_file = workspace / "input" / "duration_retry_required.jsonl"
         repair_file.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in repair_input), encoding="utf-8")
         task = (_task_text().replace("every JSONL file", "duration_retry_required.jsonl")
-                + " Use target_chars as a strict maximum and rewrite only text. The primary goal is to reduce spoken duration, "
+                + " Use target_chars as a strict maximum and make the Japanese shorter than the previous round. Rewrite only text. "
+                  "The primary goal is to reduce spoken duration, "
                   "especially for very short Japanese segments. Preserve the core meaning, but when possible remove sentence-ending "
                   "phrases such as よね, ですね, ですよ, ます, or です, plus redundant conjunctions and repeated expressions. "
                   "Prefer fitting the available speaking time over naturalness, without deleting meaning-critical words. "
