@@ -83,3 +83,29 @@ def test_real_caption_regression_uses_in_caption_sentence_timing():
     normalized_words = " ".join(texts).split()
     assert normalized_words == expected_words
     assert "[music]" not in normalized_words
+
+
+def test_consecutive_micro_units_coalesce_in_order_with_outer_timing():
+    units = normalize_segments([_segment(1, 0, 1.2, "A. B. C. End.")],
+                               min_tts_unit_seconds=.71)
+    assert [unit["unit_id"] for unit in units] == ["utt_0001"]
+    assert units[0]["source_text"] == "A. B. C. End."
+    assert units[0]["source_segment_ids"] == ["seg_0001"]
+    assert (units[0]["source_start"], units[0]["source_end"]) == (0.0, 1.2)
+    assert units[0]["source_unit_ids"] == ["utt_0001", "utt_0002", "utt_0003", "utt_0004"]
+    assert units[0]["coalesced"] is True
+
+
+def test_micro_unit_does_not_cross_real_pause():
+    units = normalize_segments([_segment(1, 0, .5, "Tiny."),
+                                _segment(2, 2, 4, "Later speech.")])
+    assert [unit["source_text"] for unit in units] == ["Tiny.", "Later speech."]
+    assert units[0]["coalesced"] is False
+
+
+def test_micro_unit_does_not_create_overlong_unit():
+    units = normalize_segments([_segment(1, 0, .5, "Tiny."),
+                                _segment(2, .5, 2, "Long speech continues")],
+                               max_duration=1.5)
+    assert len(units) == 2
+    assert all(unit["available_duration"] <= 1.5 for unit in units)
