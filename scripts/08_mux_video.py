@@ -25,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Job identifier under output/<job_id>/.",
     )
+    parser.add_argument("--quiet", action="store_true", help="Capture ffmpeg output unless it fails.")
     parser.add_argument(
         "--original-audio-db", type=float, default=-38.0,
         help="Volume of the original soundtrack in dB. Default: -38.0",
@@ -94,14 +95,17 @@ def main(argv: list[str] | None = None) -> int:
         output_video_path,
         args.original_audio_db,
     )
-    print(shlex.join(command))
+    if not args.quiet:
+        print(shlex.join(command))
 
     try:
-        subprocess.run(command, check=True)
+        result = subprocess.run(command, check=True, capture_output=args.quiet, text=args.quiet)
     except FileNotFoundError as exc:
         raise MuxVideoError(f"ffmpeg not found: {args.ffmpeg_bin}") from exc
     except subprocess.CalledProcessError as exc:
-        raise MuxVideoError(f"ffmpeg command failed with exit code {exc.returncode}.") from exc
+        stderr = (exc.stderr or "").strip()[-4000:] if args.quiet else ""
+        detail = f" stderr: {stderr}" if stderr else ""
+        raise MuxVideoError(f"ffmpeg command failed with exit code {exc.returncode}.{detail}") from exc
 
     manifest_path = paths.audio_dir / "fast_mux_manifest.json"
     manifest_path.write_text(json.dumps({
@@ -111,7 +115,8 @@ def main(argv: list[str] | None = None) -> int:
         "original_audio_db": args.original_audio_db,
         "command": command,
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"Created dubbed video: {output_video_path}")
+    if not args.quiet:
+        print(f"Created dubbed video: {output_video_path}")
     return 0
 
 

@@ -135,3 +135,23 @@ def test_edge_cache_rejects_changed_rate_policy(tmp_path, load_script):
     manifest = {"tts_provider": "edge", "voice": "ja-JP-KeitaNeural",
                 "provider_settings": {"max_rate_percent": 10}}
     assert not module._cache_matches(manifest, item, segment, "ja-JP-KeitaNeural", wav)
+
+
+def test_edge_resume_reuses_unchanged_and_regenerates_changed_text(tmp_path, load_script):
+    module = load_script("06_generate_edge_tts_segments.py")
+    segments = _write_segments(tmp_path)
+    class Provider:
+        def __init__(self): self.calls = []
+        def synthesize(self, text, output, rate_percent=0):
+            self.calls.append(text); output.write_bytes(b"mp3")
+    def convert(source, target, ffmpeg): target.write_bytes(b"wav")
+    first = Provider()
+    module.generate_job(job_id="job", output_dir=tmp_path, provider=first,
+                        converter=convert, measure=lambda _: .5)
+    segments[1]["text"] = "changed"
+    (tmp_path / "job/05_segments/translated_segments.json").write_text(json.dumps({"segments": segments}))
+    second = Provider()
+    result = module.generate_job(job_id="job", output_dir=tmp_path, provider=second,
+                                 converter=convert, measure=lambda _: .5, resume=True)
+    assert second.calls == ["changed"]
+    assert [x["status"] for x in result["items"]] == ["reused", "generated", "reused"]
