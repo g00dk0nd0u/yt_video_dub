@@ -12,7 +12,7 @@ from path_layout import build_job_paths
 
 
 COMPARABILITY_FIELDS = (
-    "workload_hash", "speaker_id", "base_url", "selected_units",
+    "workload_hash", "segment_ids", "speaker_id", "base_url", "selected_units",
     "benchmark_schema_version", "max_speed_scale", "timeout_seconds",
     "hardware.system", "hardware.machine",
 )
