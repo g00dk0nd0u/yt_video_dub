@@ -25,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--job-id",
         help="Job identifier used as output/<job_id>/. Default: YouTube video ID",
     )
+    parser.add_argument("--quiet", action="store_true", help="Suppress standalone next-step guidance.")
     parser.add_argument(
         "--output-dir",
         default="output",
@@ -92,14 +93,13 @@ def main(argv: list[str] | None = None) -> int:
         ]
     )
 
-    print("")
-    print("Preparation completed.")
-    print(f"Job ID: {job_id}")
-    print(
-        "Next step in Codex: read docs/translation_mode.md and translate "
-        f"output/{job_id}/03_translation_input/chunk_*.txt into "
-        f"output/{job_id}/04_translation_output/chunk_*.txt."
-    )
+    if not args.quiet:
+        print("")
+        print("Preparation completed.")
+        print(f"Job ID: {job_id}")
+        print("Next step in Codex: read docs/translation_mode.md and translate "
+              f"output/{job_id}/03_translation_input/chunk_*.txt into "
+              f"output/{job_id}/04_translation_output/chunk_*.txt.")
     return 0
 
 
