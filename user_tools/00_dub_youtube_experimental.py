@@ -81,6 +81,19 @@ def _stage_result(name: str, result: object) -> dict | str:
     return ""
 
 
+def _acquisition_summary(job_path: Path) -> str:
+    """Return only the compact source acquisition fields needed in run diagnostics."""
+    if not job_path.exists():
+        return ""
+    acquisition = _json(job_path).get("acquisition", {})
+    attempted = ",".join(acquisition.get("attempted_strategies", [])) or "none"
+    failures = ",".join(acquisition.get("strategy_failures", [])) or "none"
+    successful = acquisition.get("successful_strategy") or "none"
+    reused = str(bool(acquisition.get("source_reused", False))).lower()
+    return (f"source_reused={reused} attempted_strategies={attempted} "
+            f"strategy_failures={failures} successful_strategy={successful}")
+
+
 def _quality_problem(item: dict) -> dict:
     return {key: item.get(key) for key in (
         "segment_id", "start", "end", "available_duration", "text", "raw_tts_duration",
@@ -126,7 +139,9 @@ def run(url: str, *, output_dir: str = "output", voice: str = "ja-JP-KeitaNeural
             result = stages[name]()
             if result not in (None, 0) and not isinstance(result, dict):
                 raise RuntimeError(f"stage returned exit code {result}")
-            report.stage(name, "OK", monotonic() - started, _stage_result(name, result))
+            stage_result = (_acquisition_summary(paths.job_json_path) if name == "Prepare"
+                            else _stage_result(name, result))
+            report.stage(name, "OK", monotonic() - started, stage_result)
             print(f"{name:.<16} OK  {monotonic() - started:.1f}s")
             last_success = name
             if name == "Translation" and isinstance(result, dict):
