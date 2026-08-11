@@ -29,7 +29,7 @@ class BackgroundAudioError(RuntimeError):
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Add separated background audio to an existing dub.")
-    parser.add_argument("--job-id", required=True, help="Job identifier under output/<job_id>/.")
+    parser.add_argument("--job-id", help="Job identifier under output/<job_id>/.")
     parser.add_argument("--output-dir", default=str(REPO_ROOT / "output"))
     parser.add_argument("--background-db", type=float, default=DEFAULT_BACKGROUND_DB)
     parser.add_argument("--demucs-bin", default="demucs", help="External Demucs executable.")
@@ -39,6 +39,42 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ffprobe-bin", default="ffprobe")
     parser.add_argument("--quiet", action="store_true")
     return parser
+
+
+def list_background_audio_jobs(output_dir: Path) -> list[str]:
+    """Return job IDs containing every input required by this post-process."""
+    required = (
+        Path("dubbed_video.mp4"),
+        Path("07_audio/dub_audio.wav"),
+        Path("01_source/source.mp4"),
+    )
+    if not output_dir.is_dir():
+        return []
+    return sorted(
+        job_dir.name
+        for job_dir in output_dir.iterdir()
+        if job_dir.is_dir() and all((job_dir / path).is_file() for path in required)
+    )
+
+
+def select_job_id(output_dir: Path) -> str | None:
+    jobs = list_background_audio_jobs(output_dir)
+    if not jobs:
+        print("背景音を追加できる動画がありません。")
+        return None
+
+    print("背景音を追加する動画を選んでください\n")
+    for number, job_id in enumerate(jobs, start=1):
+        print(f"{number}. {job_id}")
+    exit_number = len(jobs) + 1
+    print(f"{exit_number}. 終了\n")
+
+    while True:
+        choice = input(f"番号を選んでください [1-{exit_number}]: ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= exit_number:
+            selected = int(choice)
+            return None if selected == exit_number else jobs[selected - 1]
+        print("正しい番号を入力してください。")
 
 
 def _require_file(path: Path, label: str) -> None:
@@ -267,6 +303,10 @@ def add_background_audio(args: argparse.Namespace) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.job_id is None:
+        args.job_id = select_job_id(Path(args.output_dir))
+        if args.job_id is None:
+            return 0
     standard = Path(args.output_dir) / args.job_id / "dubbed_video.mp4"
     try:
         output = add_background_audio(args)

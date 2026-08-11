@@ -34,6 +34,69 @@ def _job(tmp_path: Path) -> Path:
     return job
 
 
+def _named_job(tmp_path: Path, name: str) -> Path:
+    job = tmp_path / name
+    (job / "01_source").mkdir(parents=True)
+    (job / "07_audio").mkdir()
+    (job / "01_source" / "source.mp4").touch()
+    (job / "07_audio" / "dub_audio.wav").touch()
+    (job / "dubbed_video.mp4").touch()
+    return job
+
+
+def test_job_id_skips_interactive_selection(tmp_path, monkeypatch):
+    selected = []
+    monkeypatch.setattr(background, "select_job_id", lambda _path: selected.append(True))
+    monkeypatch.setattr(background, "add_background_audio", lambda args: tmp_path / args.job_id)
+
+    assert background.main(["--job-id", "direct", "--output-dir", str(tmp_path)]) == 0
+    assert selected == []
+
+
+def test_lists_only_complete_jobs_in_sorted_order(tmp_path):
+    _named_job(tmp_path, "video-b")
+    _named_job(tmp_path, "video-a")
+    incomplete = _named_job(tmp_path, "incomplete")
+    (incomplete / "07_audio" / "dub_audio.wav").unlink()
+    (tmp_path / "not-a-job.txt").touch()
+
+    assert background.list_background_audio_jobs(tmp_path) == ["video-a", "video-b"]
+
+
+def test_number_selection_returns_corresponding_job(tmp_path, monkeypatch):
+    _named_job(tmp_path, "first")
+    _named_job(tmp_path, "second")
+    monkeypatch.setattr("builtins.input", lambda _prompt: "2")
+
+    assert background.select_job_id(tmp_path) == "second"
+
+
+def test_invalid_selection_prompts_again(tmp_path, monkeypatch, capsys):
+    _named_job(tmp_path, "job")
+    answers = iter(["x", "0", "3", "1"])
+    monkeypatch.setattr("builtins.input", lambda _prompt: next(answers))
+
+    assert background.select_job_id(tmp_path) == "job"
+    assert capsys.readouterr().out.count("正しい番号を入力してください。") == 3
+
+
+def test_exit_selection_returns_none(tmp_path, monkeypatch):
+    _named_job(tmp_path, "job")
+    monkeypatch.setattr("builtins.input", lambda _prompt: "2")
+
+    assert background.select_job_id(tmp_path) is None
+
+
+def test_no_jobs_exits_normally(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(
+        background, "add_background_audio",
+        lambda _args: pytest.fail("processing must not start"),
+    )
+
+    assert background.main(["--output-dir", str(tmp_path)]) == 0
+    assert "背景音を追加できる動画がありません。" in capsys.readouterr().out
+
+
 def _fake_commands(monkeypatch, calls: list[list[str]], *, audio_format=None):
     monkeypatch.setattr(background.shutil, "which", lambda value: f"/bin/{value}")
     audio_format = audio_format or {"codec_name": "aac", "sample_rate": "48000", "channels": 2}

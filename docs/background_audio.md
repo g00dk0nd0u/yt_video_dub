@@ -4,6 +4,13 @@ This tool is separate from the standard dubbing workflow. Run it only after
 `dubbed_video.mp4` and `07_audio/dub_audio.wav` have been created successfully:
 
 ```bash
+python user_tools/10_add_background_audio.py
+```
+
+When run without arguments, the tool lists completed jobs under `output/` and
+lets you select one by number. To select a job non-interactively, use:
+
+```bash
 python user_tools/10_add_background_audio.py --job-id VIDEO_ID
 ```
 
