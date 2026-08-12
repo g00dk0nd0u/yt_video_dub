@@ -1,6 +1,8 @@
 import asyncio
 import json
 import math
+import threading
+import time
 import wave
 from array import array
 
@@ -214,3 +216,45 @@ def test_edge_fit_uses_exact_cleaned_downstream_wav(tmp_path, load_script):
     assert item["fit_status"] == "ok"
     assert item["original_converted_duration"] == 1.0
     assert item["final_tts_duration"] == pytest.approx(module._measure_wav(final_path))
+
+
+@pytest.mark.parametrize("workers", [1, 4])
+def test_edge_worker_modes_preserve_order_retry_and_isolate_failure(tmp_path, load_script, workers):
+    module = load_script("06_generate_edge_tts_segments.py")
+    _write_segments(tmp_path)
+    native_paths, lock = [], threading.Lock()
+    delays = {"one": .06, "two": .03, "three": .01}
+    class Provider:
+        def synthesize(self, text, output, rate_percent=0):
+            with lock: native_paths.append(output)
+            time.sleep(delays[text])
+            if text == "two": raise EdgeTTSError("isolated")
+            output.write_bytes(b"mp3")
+    def convert(source, target, ffmpeg): target.write_bytes(b"wav")
+    result = module.generate_job(
+        job_id="job", output_dir=tmp_path, provider_factory=Provider, workers=workers,
+        converter=convert, measure=lambda _: .8, silence_handler=_silence(.8))
+    assert [item["segment_id"] for item in result["items"]] == ["one", "two", "three"]
+    assert [item["status"] for item in result["items"]] == ["generated", "failed", "generated"]
+    assert len(native_paths) == len(set(native_paths)) == 3
+    saved = json.loads((tmp_path / "job/06_tts/tts_manifest.json").read_text())
+    assert saved["items"] == result["items"]
+
+
+def test_edge_parallel_workers_overlap_and_wait_before_manifest(tmp_path, load_script):
+    module = load_script("06_generate_edge_tts_segments.py")
+    _write_segments(tmp_path)
+    barrier = threading.Barrier(3)
+    completed = []
+    class Provider:
+        def synthesize(self, text, output, rate_percent=0):
+            barrier.wait(timeout=1); time.sleep(.04); output.write_bytes(b"mp3")
+    def convert(source, target, ffmpeg): target.write_bytes(b"wav")
+    started = time.monotonic()
+    result = module.generate_job(
+        job_id="job", output_dir=tmp_path, provider_factory=Provider, workers=3,
+        converter=convert, measure=lambda _: .8,
+        silence_handler=lambda path: (completed.append(path) or _silence(.8)(path)))
+    assert time.monotonic() - started < .10
+    assert len(completed) == 3
+    assert len(result["items"]) == 3

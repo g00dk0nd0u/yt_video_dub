@@ -176,23 +176,48 @@ def _write_job_file(job_path: Path, payload: dict) -> None:
     job_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def prepare_youtube_metadata(*, youtube_url: str, job_id: str | None,
+                             output_dir: str) -> tuple[str, dict]:
+    """Resolve identity and register the job before independent acquisition starts."""
+    info = _extract_youtube_metadata(youtube_url)
+    resolved_job_id = job_id or info["id"]
+    paths = build_job_paths(output_dir, resolved_job_id)
+    paths.ensure_prepare_dirs()
+    payload = {
+        "job_id": resolved_job_id, "created_at": _utc_now_iso(), "source_type": "youtube",
+        "youtube_url": youtube_url, "video_id": info["id"], "title": info.get("title"),
+    }
+    _write_job_file(paths.job_json_path, payload)
+    return resolved_job_id, payload
+
+
+def acquire_youtube_source(*, youtube_url: str, job_id: str,
+                           output_dir: str) -> tuple[Path, dict]:
+    paths = build_job_paths(output_dir, job_id)
+    return _acquire_youtube_source(youtube_url, paths.source_dir)
+
+
+def finalize_youtube_job(*, job_id: str, output_dir: str, payload: dict,
+                         source_path: Path, acquisition: dict) -> None:
+    paths = build_job_paths(output_dir, job_id)
+    final_payload = {**payload, "source_path": paths.rel_to_job(source_path),
+                     "acquisition": acquisition}
+    _write_job_file(paths.job_json_path, final_payload)
+
+
 def prepare_source(*, youtube_url: str | None, local_video: str | None,
                    job_id: str | None, output_dir: str) -> str:
     output_dir_path = Path(output_dir)
     output_dir_path.mkdir(parents=True, exist_ok=True)
     if youtube_url:
-        info = _extract_youtube_metadata(youtube_url)
-        resolved_job_id = job_id or info["id"]
-        paths = build_job_paths(output_dir_path, resolved_job_id)
-        paths.ensure_prepare_dirs()
-        source_path, acquisition = _acquire_youtube_source(youtube_url, paths.source_dir)
-        _write_job_file(paths.job_json_path, {
-            "job_id": resolved_job_id, "created_at": _utc_now_iso(), "source_type": "youtube",
-            "youtube_url": youtube_url, "video_id": info["id"], "title": info.get("title"),
-            "source_path": paths.rel_to_job(source_path), "acquisition": acquisition,
-        })
+        resolved_job_id, payload = prepare_youtube_metadata(
+            youtube_url=youtube_url, job_id=job_id, output_dir=output_dir)
+        source_path, acquisition = acquire_youtube_source(
+            youtube_url=youtube_url, job_id=resolved_job_id, output_dir=output_dir)
+        finalize_youtube_job(job_id=resolved_job_id, output_dir=output_dir, payload=payload,
+                             source_path=source_path, acquisition=acquisition)
         print(f"Prepared job: {resolved_job_id}")
-        print(f"Job directory: {paths.job_dir}")
+        print(f"Job directory: {build_job_paths(output_dir, resolved_job_id).job_dir}")
         return resolved_job_id
     resolved_job_id = job_id or "local-video"
     raise NotImplementedError("Local video input is reserved for a later phase. "

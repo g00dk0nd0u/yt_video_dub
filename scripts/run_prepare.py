@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import importlib.util
 import sys
 from pathlib import Path
@@ -71,23 +72,27 @@ def main(argv: list[str] | None = None) -> int:
     get_transcript = _load_script_module("02_get_transcript.py")
     normalize_transcript = _load_script_module("02_normalize_transcript.py")
     make_chunks = _load_script_module("03_make_translation_chunks.py")
-    job_id = prepare_source.prepare_source(
-        youtube_url=args.youtube_url,
-        local_video=args.local_video,
-        job_id=args.job_id,
-        output_dir=args.output_dir,
-    )
+    if not args.youtube_url:
+        job_id = prepare_source.prepare_source(
+            youtube_url=None, local_video=args.local_video, job_id=args.job_id,
+            output_dir=args.output_dir)
+    else:
+        job_id, job_payload = prepare_source.prepare_youtube_metadata(
+            youtube_url=args.youtube_url, job_id=args.job_id, output_dir=args.output_dir)
+        transcript_args = ["--job-id", job_id, "--output-dir", args.output_dir,
+                           "--language", args.language]
+        # Both operations only read the registered job identity and write disjoint paths.
+        with ThreadPoolExecutor(max_workers=2, thread_name_prefix="prepare") as executor:
+            source_future = executor.submit(
+                prepare_source.acquire_youtube_source, youtube_url=args.youtube_url,
+                job_id=job_id, output_dir=args.output_dir)
+            transcript_future = executor.submit(get_transcript.main, transcript_args)
+            source_path, acquisition = source_future.result()
+            transcript_future.result()
+        prepare_source.finalize_youtube_job(
+            job_id=job_id, output_dir=args.output_dir, payload=job_payload,
+            source_path=source_path, acquisition=acquisition)
 
-    get_transcript.main(
-        [
-            "--job-id",
-            job_id,
-            "--output-dir",
-            args.output_dir,
-            "--language",
-            args.language,
-        ]
-    )
     normalize_transcript.main(["--job-id", job_id, "--output-dir", args.output_dir])
     make_chunks.main(
         [
