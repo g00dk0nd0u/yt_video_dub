@@ -3,6 +3,7 @@ import inspect
 import io
 import threading
 import time
+import types
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,72 @@ def test_stage_order_job_propagation_and_canonical_path(tmp_path):
                         stages=stages)
     assert calls == ["Prepare", "Translation", "Build", "Preflight", "TTS", "Audio", "Mux"]
     assert result == tmp_path / "abc123/dubbed_video.mp4"
+
+
+def _install_default_workflow_fakes(module, monkeypatch, tmp_path, calls, task):
+    import providers
+    import providers.translation.codex_cli as codex_cli
+
+    job = tmp_path / "abc123"
+    def translation_provider(_name):
+        return lambda **_kwargs: calls.append("Translation") or {}
+    monkeypatch.setattr(providers, "translation_provider", translation_provider)
+    monkeypatch.setattr(codex_cli, "repair_translations", lambda **_kwargs: [])
+
+    def prepare(_args):
+        calls.append("Prepare")
+        path = job / "01_source/job.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"acquisition": {}}))
+    def audio(_args):
+        calls.append("Audio")
+        path = job / "07_audio/dub_audio_manifest.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"warnings_count": 0, "items": []}))
+    modules = {
+        "run_prepare.py": types.SimpleNamespace(main=prepare),
+        "04_build_translated_segments.py": types.SimpleNamespace(main=lambda _a: calls.append("Build")),
+        "05_preflight_local_run.py": types.SimpleNamespace(main=lambda _a: calls.append("Preflight")),
+        "06_generate_edge_tts_segments.py": types.SimpleNamespace(generate_job=lambda **_k:
+            calls.append("TTS") or {"run_metrics": {"failed_units": 0, "fit_ng_count": 0}, "items": []}),
+        "07_build_dub_audio.py": types.SimpleNamespace(main=audio),
+        "08_mux_video.py": types.SimpleNamespace(mux_job=lambda **kwargs:
+            calls.append(("Mux", kwargs["compatibility_result"])) or {}),
+        "video_compat.py": types.SimpleNamespace(start_job=lambda *_a: calls.append("Compat start") or task),
+    }
+    monkeypatch.setattr(module, "_load", lambda filename: modules[filename])
+
+
+def test_default_workflow_starts_compatibility_before_translation(tmp_path, monkeypatch):
+    module = _module()
+    calls = []
+    task = types.SimpleNamespace(
+        finish=lambda: calls.append("Compat finish") or {"compatibility_background_used": True},
+        cancel=lambda: calls.append("Compat cancel"))
+    _install_default_workflow_fakes(module, monkeypatch, tmp_path, calls, task)
+
+    module.run("https://youtu.be/abc123", output_dir=str(tmp_path))
+
+    assert calls.index("Prepare") < calls.index("Compat start") < calls.index("Translation")
+    assert calls.index("Audio") < calls.index("Compat finish")
+    mux_call = next(item for item in calls if isinstance(item, tuple) and item[0] == "Mux")
+    assert mux_call[1]["compatibility_background_used"] is True
+
+
+def test_pipeline_failure_cancels_background_task(tmp_path, monkeypatch):
+    module = _module()
+    calls = []
+    task = types.SimpleNamespace(finish=lambda: {}, cancel=lambda: calls.append("Compat cancel"))
+    _install_default_workflow_fakes(module, monkeypatch, tmp_path, calls, task)
+    import providers
+    monkeypatch.setattr(providers, "translation_provider", lambda _name:
+                        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("translation failed")))
+
+    with pytest.raises(RuntimeError, match="Translation failed"):
+        module.run("https://youtu.be/abc123", output_dir=str(tmp_path))
+
+    assert "Compat cancel" in calls
+    assert not any(isinstance(item, tuple) and item[0] == "Mux" for item in calls)
 
 
 @pytest.mark.parametrize("failed,not_called", [
@@ -202,6 +269,12 @@ def test_success_writes_diagnostics_and_zero_quality_summary(tmp_path):
 @pytest.mark.parametrize("mux_diagnostic", [
     {"source_video_codec": "av1", "output_video_codec": "h264",
      "video_mode": "transcode", "compatibility_fallback_used": True},
+    {"source_video_codec": "av1", "output_video_codec": "h264", "video_mode": "copy",
+     "compatibility_task_started": True, "compatibility_cache_reused": False,
+     "compatibility_background_used": True, "compatibility_encoder": "libx264",
+     "compatibility_transcode_seconds": 67.0, "compatibility_wait_seconds": 0.2,
+     "compatibility_failure": None, "compatibility_fallback_used": True,
+     "compatibility_synchronous_fallback_used": False},
     {"source_video_codec": "h264", "output_video_codec": "h264",
      "video_mode": "copy", "compatibility_fallback_used": False},
 ])
@@ -227,7 +300,7 @@ def test_mux_codec_decision_is_in_primary_diagnostics(tmp_path, mux_diagnostic):
                       if stage["name"] == "Mux")["result"]
     diagnostic = (tmp_path / "latest_run.txt").read_text()
     for key, value in mux_diagnostic.items():
-        rendered = str(value).lower() if isinstance(value, bool) else str(value)
+        rendered = str(value).lower()
         assert key in mux_result and rendered in mux_result.lower()
         assert key in diagnostic and rendered in diagnostic.lower()
     assert "'video_codec':" not in mux_result

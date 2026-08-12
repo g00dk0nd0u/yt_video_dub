@@ -243,7 +243,11 @@ def _record_tts_diagnostics(report, manifest: dict) -> None:
 
 def _mux_diagnostics(manifest: dict) -> dict:
     fields = ("source_video_codec", "output_video_codec", "video_mode",
-              "compatibility_fallback_used")
+              "compatibility_task_started", "compatibility_cache_reused",
+              "compatibility_background_used", "compatibility_encoder",
+              "compatibility_transcode_seconds", "compatibility_wait_seconds",
+              "compatibility_failure", "compatibility_fallback_used",
+              "compatibility_synchronous_fallback_used")
     return {field: manifest[field] for field in fields if field in manifest}
 
 
@@ -261,12 +265,15 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
     paths = build_job_paths(output_dir, job_id)
     report = RunReport(output_dir, job_id, url)
     injected = stages is not None
+    compatibility_task = None
+    compatibility_result = None
     if stages is None:
         from providers import translation_provider
         from providers.translation.codex_cli import repair_translations
         prepare, build = _load("run_prepare.py"), _load("04_build_translated_segments.py")
         preflight, edge = _load("05_preflight_local_run.py"), _load("06_generate_edge_tts_segments.py")
         audio, mux = _load("07_build_dub_audio.py"), _load("08_mux_video.py")
+        video_compat = _load("video_compat.py")
         common = ["--job-id", job_id, "--output-dir", output_dir]
         stages = {
             "Prepare": lambda: prepare.main(["--youtube-url", url, "--output-dir", output_dir, "--quiet"]),
@@ -279,7 +286,9 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
             "Repair": lambda: repair_translations(retry_path=paths.duration_retry_required_path,
                 input_dir=paths.translation_input_dir, output_dir=paths.translation_output_dir,
                 manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md"),
-            "Audio": lambda: audio.main(common), "Mux": lambda: mux.main(common + ["--quiet"]),
+            "Audio": lambda: audio.main(common),
+            "Mux": lambda: mux.mux_job(job_id=job_id, output_dir=output_dir, quiet=True,
+                                         compatibility_result=compatibility_result),
         }
     last_success = "none"
     current = "Prepare"
@@ -294,6 +303,8 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
             report.stage(name, "OK", monotonic() - started, stage_result)
             print(f"{name:.<16} OK  {monotonic() - started:.1f}s")
             last_success = name
+            if name == "Prepare" and not injected:
+                compatibility_task = video_compat.start_job(job_id, output_dir)
             if name == "Translation" and isinstance(result, dict):
                 report.data["translation"] = {key: result[key] for key in ("chunk_count", "segment_count") if key in result}
         manifest = result if isinstance(result, dict) and "run_metrics" in result else (_json(paths.tts_manifest_path) if paths.tts_manifest_path.exists() else {})
@@ -350,6 +361,8 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
         qa = _audio_quality(audio_manifest)
         report.data["audio_qa"] = qa; report.stage(current, "OK", monotonic() - started, qa); last_success = current
         print(f"{current:.<16} OK")
+        if compatibility_task is not None:
+            compatibility_result = compatibility_task.finish()
         current, started = "Mux", monotonic(); result = _call_stage("Mux", stages["Mux"])
         if result not in (None, 0) and not isinstance(result, dict): raise RuntimeError(f"stage returned exit code {result}")
         mux_manifest_path = paths.audio_dir / "fast_mux_manifest.json"
@@ -364,6 +377,10 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
         report.finalize(success=False, failure={"failed_stage": current, "error_type": type(exc).__name__,
             "message": exc, "last_successful_stage": last_success, "same_command_can_resume": True})
         raise RuntimeError(f"{current} failed: {exc}") from exc
+    finally:
+        # Also runs for KeyboardInterrupt, which is intentionally not wrapped as a stage failure.
+        if compatibility_task is not None:
+            compatibility_task.cancel()
 
 
 def main(argv: list[str] | None = None) -> int:
