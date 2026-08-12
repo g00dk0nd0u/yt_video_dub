@@ -7,6 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+LEGACY_WORK_DIRECTORIES = (
+    "01_source", "02_transcript", "03_translation_input", "04_translation_output",
+    "05_segments", "06_tts", "07_audio", "10_metrics",
+)
+
+
 @dataclass(frozen=True)
 class JobPaths:
     """Job-scoped output paths with new-layout write targets and legacy fallbacks."""
@@ -166,6 +172,24 @@ class JobPaths:
         self.translation_input_dir.mkdir(parents=True, exist_ok=True)
         self.translation_output_dir.mkdir(parents=True, exist_ok=True)
 
+    def adopt_numbered_work_layout(self) -> bool:
+        """Move the immediately previous numbered work layout without merging conflicts."""
+        legacy = [self.job_dir / name for name in LEGACY_WORK_DIRECTORIES
+                  if (self.job_dir / name).exists()]
+        if not legacy:
+            return False
+        existing = [self.work_dir / path.name for path in legacy
+                    if (self.work_dir / path.name).exists()]
+        if existing or (self.work_dir.exists() and any(self.work_dir.iterdir())):
+            names = ", ".join(path.name for path in legacy)
+            raise RuntimeError(
+                "Conflicting old and new job work layouts; preserved both without changes: " + names
+            )
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+        for path in legacy:
+            path.replace(self.work_dir / path.name)
+        return True
+
     def ensure_tts_dirs(self) -> None:
         self.tts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -267,4 +291,6 @@ def _prefer_existing_dir(primary: Path, legacy: Path) -> Path:
 
 
 def build_job_paths(output_dir: str | Path, job_id: str) -> JobPaths:
-    return JobPaths(output_dir=Path(output_dir), job_id=job_id)
+    paths = JobPaths(output_dir=Path(output_dir), job_id=job_id)
+    paths.adopt_numbered_work_layout()
+    return paths

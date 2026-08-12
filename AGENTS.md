@@ -24,5 +24,6 @@
 - Default translation is Codex CLI; default TTS is Edge. Neither paid APIs, API keys, local LLMs, nor AivisSpeech startup are required.
 - Preserve the fixed source timeline; never slow, retime, trim, or segment-concat video.
 - Treat TTS NG and nonzero Audio QA warnings/clipped/overflow as hard failures.
-- Use `output/latest_run.txt` as the primary diagnostic handoff.
+- Use `output/<job_id>/.cache/diagnostic.json` as the primary diagnostic handoff.
+- `.cache/work/` is temporary working evidence: delete it only after fully successful normal-dub compaction, and retain it on failure or interruption.
 - AivisSpeech tools are explicit optional/advanced tools only and must never be auto-started.

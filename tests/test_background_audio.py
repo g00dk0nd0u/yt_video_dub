@@ -17,10 +17,12 @@ sys.modules[SPEC.name] = background
 SPEC.loader.exec_module(background)
 
 
-def _args(tmp_path: Path, *, background_db: float | None = None):
+def _args(tmp_path: Path, *, background_db: float | None = None, model: str | None = None):
     arguments = ["--job-id", "job", "--output-dir", str(tmp_path), "--quiet"]
     if background_db is not None:
         arguments.extend(["--background-db", str(background_db)])
+    if model is not None:
+        arguments.extend(["--model", model])
     return background.build_parser().parse_args(arguments)
 
 
@@ -108,7 +110,8 @@ def _fake_commands(monkeypatch, calls: list[list[str]], *, audio_format=None):
                 )
             return subprocess.CompletedProcess(command, 0, stdout="10.0\n", stderr="")
         if "--two-stems=vocals" in command:
-            out = Path(command[command.index("-o") + 1]) / "htdemucs" / "source"
+            out = (Path(command[command.index("-o") + 1])
+                   / command[command.index("-n") + 1] / "source")
             out.mkdir(parents=True)
             (out / "vocals.wav").write_bytes(b"vocals")
             (out / "no_vocals.wav").write_bytes(b"background")
@@ -256,6 +259,48 @@ def test_source_change_invalidates_separation_cache(tmp_path, monkeypatch):
     assert sum("--two-stems=vocals" in command for command in calls) == 1
 
 
+def test_cache_identity_a_to_b_to_a_never_reuses_b_for_a(tmp_path, monkeypatch):
+    job = _job(tmp_path)
+    calls = []
+    _fake_commands(monkeypatch, calls)
+    source = job / ".cache/source_audio.mka"
+
+    background.add_background_audio(_args(tmp_path))
+    source.write_bytes(b"identity-b")
+    background.add_background_audio(_args(tmp_path))
+    source.write_bytes(b"source-audio")
+    calls.clear()
+    background.add_background_audio(_args(tmp_path))
+
+    assert sum("--two-stems=vocals" in command for command in calls) == 1
+    diagnostic = json.loads((job / ".cache/diagnostic.json").read_text())
+    assert diagnostic["background_cache"]["source_identity"]["source_sha256"] == background._sha256(source)
+
+
+def test_same_identity_twice_reuses_current_accompaniment(tmp_path, monkeypatch):
+    _job(tmp_path)
+    calls = []
+    _fake_commands(monkeypatch, calls)
+    background.add_background_audio(_args(tmp_path))
+    calls.clear()
+
+    background.add_background_audio(_args(tmp_path))
+
+    assert not any("--two-stems=vocals" in command for command in calls)
+
+
+def test_demucs_model_change_invalidates_current_accompaniment(tmp_path, monkeypatch):
+    _job(tmp_path)
+    calls = []
+    _fake_commands(monkeypatch, calls)
+    background.add_background_audio(_args(tmp_path))
+    calls.clear()
+
+    background.add_background_audio(_args(tmp_path, model="other-model"))
+
+    assert sum("--two-stems=vocals" in command for command in calls) == 1
+
+
 def test_missing_demucs_fails_cleanly_without_output(tmp_path, monkeypatch, capsys):
     job = _job(tmp_path)
     monkeypatch.setattr(background.importlib.util, "find_spec", lambda name: None)
@@ -266,6 +311,7 @@ def test_missing_demucs_fails_cleanly_without_output(tmp_path, monkeypatch, caps
     assert result == 1
     assert not (job / "dubbed_video_with_bg.mp4").exists()
     assert (job / "dubbed_video.mp4").read_bytes() == b"standard-must-survive"
+    assert (job / ".cache/source_audio.mka").read_bytes() == b"source-audio"
     stderr = capsys.readouterr().err
     assert "Background separation tool is not installed" in stderr
     assert "unchanged" in stderr
@@ -295,6 +341,7 @@ def test_failed_final_mux_removes_partial_output(tmp_path, monkeypatch):
     assert not (job / ".dubbed_video_with_bg.tmp.mp4").exists()
     assert not (job / "dubbed_video_with_bg.mp4").exists()
     assert (job / "dubbed_video.mp4").read_bytes() == b"standard-must-survive"
+    assert (job / ".cache/source_audio.mka").read_bytes() == b"source-audio"
     manifest = json.loads((job / ".cache/diagnostic.json").read_text())
     assert manifest["background_runs"][-1]["success"] is False
 

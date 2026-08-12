@@ -32,6 +32,18 @@ YouTube URL または bare video ID（例: `OEkxKdhtQng`）を一度入力する
 
 音声は `--voice` で変更できます。診断情報は job ごとの `output/<video_id>/.cache/diagnostic.json` です。成功時は final video、diagnostic、source audio だけを残し、失敗時は `.cache/work/` に調査用の作業状態を残します。古い job の削除には `python user_tools/99_cleanup.py` を使います。
 
+```text
+output/<video_id>/
+├── dubbed_video.mp4
+├── dubbed_video_with_bg.mp4       # optional
+└── .cache/
+    ├── diagnostic.json
+    ├── source_audio.mka
+    └── accompaniment.flac         # optional
+```
+
+`.cache/work/` は実行中の一時作業領域です。normal dubが完全に成功した後だけ削除し、失敗・割込時はresumeと調査のため保持します。
+
 ## macOS Desktop launcher
 
 上記の手順で `.venv` を作成して依存関係を入れた後、次を一度実行します。

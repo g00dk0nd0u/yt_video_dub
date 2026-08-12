@@ -239,7 +239,8 @@ def test_cli_forwards_tts_workers(monkeypatch, tmp_path):
 
 def test_invalid_url_does_not_advertise_stale_diagnostic(tmp_path, capsys):
     module = _module()
-    stale = tmp_path / "latest_run.txt"
+    stale = tmp_path / "previous/.cache/diagnostic.json"
+    stale.parent.mkdir(parents=True)
     stale.write_text("previous run")
     assert module.main(["--url", "https://example.com/not-youtube",
                         "--output-dir", str(tmp_path)]) == 1

@@ -170,9 +170,10 @@ def _valid_cache(cache_dir: Path, identity: dict[str, object]) -> bool:
     diagnostic, background = cache_dir / "diagnostic.json", cache_dir / "accompaniment.flac"
     try:
         saved = json.loads(diagnostic.read_text(encoding="utf-8"))
-        runs = saved.get("background_runs", [])
-        return background.is_file() and background.stat().st_size > 0 and any(
-            run.get("success") and run.get("source_identity") == identity for run in reversed(runs))
+        current = saved.get("background_cache", {})
+        return (background.is_file() and background.stat().st_size > 0
+                and current.get("source_identity") == identity
+                and current.get("path") == ".cache/accompaniment.flac")
     except (OSError, ValueError, TypeError):
         return False
 
@@ -209,7 +210,7 @@ def _separate(args: argparse.Namespace, source: Path, cache_dir: Path) -> None:
         os.replace(staged, cache_dir / "accompaniment.flac")
 
 
-def _update_diagnostic(path: Path, run: dict[str, object]) -> None:
+def _update_diagnostic(path: Path, run: dict[str, object], *, invalidate_cache: bool = False) -> None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -217,6 +218,8 @@ def _update_diagnostic(path: Path, run: dict[str, object]) -> None:
     history = payload.setdefault("background_runs", [])
     history.append(run)
     payload["background_runs"] = history[-20:]
+    if invalidate_cache:
+        payload.pop("background_cache", None)
     _write_manifest_atomic(path, payload)
 
 
@@ -229,6 +232,10 @@ def _stage_diagnostic(path: Path, run: dict[str, object]) -> Path:
     history = payload.setdefault("background_runs", [])
     history.append(run)
     payload["background_runs"] = history[-20:]
+    payload["background_cache"] = {
+        "source_identity": run["source_identity"], "model": run["model"],
+        "published_at": run["timestamp"], "path": ".cache/accompaniment.flac",
+    }
     staged = path.with_name(".diagnostic.json.success.tmp")
     staged.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     json.loads(staged.read_text(encoding="utf-8"))
@@ -249,6 +256,7 @@ def add_background_audio(args: argparse.Namespace) -> Path:
     output_backup = job_dir / ".dubbed_video_with_bg.backup.mp4"
     staged_diagnostic = cache_dir / ".diagnostic.json.success.tmp"
     cache_reused = False
+    cache_generated = False
     manifest: dict[str, object] = {
         "timestamp": datetime.now(timezone.utc).isoformat(), "source_identity": None,
         "demucs_backend": BACKEND, "model": args.model, "accompaniment_cache_reused": False,
@@ -265,6 +273,7 @@ def add_background_audio(args: argparse.Namespace) -> Path:
         cache_reused = _valid_cache(cache_dir, identity)
         if not cache_reused:
             _separate(args, source, cache_dir)
+            cache_generated = True
         duration = _probe_duration(args.ffprobe_bin, standard)
         filter_graph = (
             "[0:a:0]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo[dub];"
@@ -325,11 +334,16 @@ def add_background_audio(args: argparse.Namespace) -> Path:
                 os.replace(output_backup, output)
         except OSError:
             pass
+        if cache_generated:
+            try:
+                (cache_dir / "accompaniment.flac").unlink(missing_ok=True)
+            except OSError:
+                pass
         manifest.update({"accompaniment_cache_reused": cache_reused, "error": str(exc)[-1200:]})
         manifest["success"] = False
         manifest["elapsed_time_seconds"] = round(monotonic() - started, 3)
         if cache_dir.exists():
-            try: _update_diagnostic(diagnostic_path, manifest)
+            try: _update_diagnostic(diagnostic_path, manifest, invalidate_cache=cache_generated)
             except OSError: pass
         raise
 
