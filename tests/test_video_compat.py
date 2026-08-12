@@ -30,7 +30,7 @@ class FakeProcess:
 
 
 def _job(tmp_path, codec="av1"):
-    source = tmp_path / "job/01_source/source.mp4"
+    source = tmp_path / "job/.cache/work/01_source/source.mp4"
     source.parent.mkdir(parents=True)
     source.write_bytes(codec.encode())
     return source
@@ -74,7 +74,7 @@ def test_background_success_publishes_validated_cache_and_command(tmp_path, load
     assert "-map 0:v:0 -map 0:a:0?" in joined
     assert "-c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p" in joined
     assert "-c:a copy" in joined and "-movflags +faststart" in joined
-    assert (tmp_path / "job/01_source/compat_h264.mp4").read_bytes() == b"encoded"
+    assert (tmp_path / "job/.cache/work/01_source/compat_h264.mp4").read_bytes() == b"encoded"
     assert result["compatibility_background_used"] is True
     assert result["compatibility_transcode_seconds"] >= 0
     assert result["compatibility_wait_seconds"] >= 0
@@ -83,7 +83,7 @@ def test_background_success_publishes_validated_cache_and_command(tmp_path, load
 def test_matching_identity_reuses_cache_without_ffmpeg(tmp_path, load_script, monkeypatch):
     module = load_script("video_compat.py")
     source = _job(tmp_path)
-    cache = tmp_path / "job/01_source/compat_h264.mp4"
+    cache = tmp_path / "job/.cache/work/01_source/compat_h264.mp4"
     cache.write_bytes(b"cached")
     _mock_tools(module, monkeypatch, source)
     identity = module._identity(source, SOURCE_PROBE, "ffmpeg test")
@@ -102,7 +102,7 @@ def test_matching_cache_reuses_when_optional_color_metadata_is_missing(
 ):
     module = load_script("video_compat.py")
     source = _job(tmp_path)
-    cache = tmp_path / "job/01_source/compat_h264.mp4"
+    cache = tmp_path / "job/.cache/work/01_source/compat_h264.mp4"
     cache.write_bytes(b"cached")
     optional_missing = {
         **SOURCE_PROBE,
@@ -131,7 +131,7 @@ def test_matching_cache_reuses_when_optional_color_metadata_is_missing(
 def test_source_identity_change_starts_new_encode(tmp_path, load_script, monkeypatch):
     module = load_script("video_compat.py")
     source = _job(tmp_path)
-    cache = tmp_path / "job/01_source/compat_h264.mp4"
+    cache = tmp_path / "job/.cache/work/01_source/compat_h264.mp4"
     cache.write_bytes(b"cached")
     _mock_tools(module, monkeypatch, source)
     stale = module._identity(source, SOURCE_PROBE, "ffmpeg test")

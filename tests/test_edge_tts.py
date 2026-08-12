@@ -40,7 +40,7 @@ def test_edge_provider_default_alternate_and_error(tmp_path):
 
 def test_edge_duration_fitting_and_provider_cache(tmp_path, load_script):
     module = load_script("06_generate_edge_tts_segments.py")
-    job = tmp_path / "job/05_segments"
+    job = tmp_path / "job/.cache/work/05_segments"
     job.mkdir(parents=True)
     segments = [
         {"segment_id": "ok", "start": 0.0, "end": 1.0, "text": "a"},
@@ -68,7 +68,7 @@ def test_edge_duration_fitting_and_provider_cache(tmp_path, load_script):
     assert manifest["items"][2]["translation_retry_required"] is True
     assert rates == [0, 0, 11, 0]
     retry_rows = [json.loads(line) for line in
-                  (tmp_path / "job/05_segments/duration_retry_required.jsonl").read_text().splitlines()]
+                  (tmp_path / "job/.cache/work/05_segments/duration_retry_required.jsonl").read_text().splitlines()]
     assert [row["segment_id"] for row in retry_rows] == ["ng"]
     assert set(retry_rows[0]) == {"segment_id", "start", "end", "duration", "current_text",
                                   "raw_tts_duration", "required_speed", "target_chars", "coalesced"}
@@ -79,7 +79,7 @@ def test_edge_duration_fitting_and_provider_cache(tmp_path, load_script):
 
 def test_edge_workers_run_independent_segments_in_parallel(tmp_path, load_script):
     module = load_script("06_generate_edge_tts_segments.py")
-    directory = tmp_path / "job/05_segments"
+    directory = tmp_path / "job/.cache/work/05_segments"
     directory.mkdir(parents=True)
     directory.joinpath("translated_segments.json").write_text(json.dumps({"segments": [
         {"segment_id": "one", "start": 0, "end": 1, "text": "one"},
@@ -108,7 +108,7 @@ def test_edge_workers_run_independent_segments_in_parallel(tmp_path, load_script
 
 
 def _write_segments(tmp_path):
-    directory = tmp_path / "job/05_segments"
+    directory = tmp_path / "job/.cache/work/05_segments"
     directory.mkdir(parents=True)
     segments = [
         {"segment_id": "one", "start": 0.0, "end": 1.0, "text": "one"},
@@ -142,7 +142,7 @@ def test_edge_partial_failure_continues_and_resume_repairs_only_failure(tmp_path
     assert first["items"][1]["status"] == "failed"
     assert first["items"][1]["wav_path"] is None
     assert first["run_metrics"]["failed_units"] == 1
-    assert not (tmp_path / "job/06_tts/segment_000002.wav").exists()
+    assert not (tmp_path / "job/.cache/work/06_tts/segment_000002.wav").exists()
 
     second_calls = []
     class SecondProvider:
@@ -160,7 +160,7 @@ def test_edge_partial_failure_continues_and_resume_repairs_only_failure(tmp_path
 
 def test_edge_main_returns_one_after_saving_failure_manifest(tmp_path, load_script, monkeypatch):
     module = load_script("06_generate_edge_tts_segments.py")
-    manifest_path = tmp_path / "job/06_tts/tts_manifest.json"
+    manifest_path = tmp_path / "job/.cache/work/06_tts/tts_manifest.json"
 
     def failed_job(**kwargs):
         manifest_path.parent.mkdir(parents=True)
@@ -196,7 +196,7 @@ def test_edge_resume_reuses_unchanged_and_regenerates_changed_text(tmp_path, loa
     module.generate_job(job_id="job", output_dir=tmp_path, provider=first,
                         converter=convert, measure=lambda _: .5, silence_handler=_silence(.5))
     segments[1]["text"] = "changed"
-    (tmp_path / "job/05_segments/translated_segments.json").write_text(json.dumps({"segments": segments}))
+    (tmp_path / "job/.cache/work/05_segments/translated_segments.json").write_text(json.dumps({"segments": segments}))
     second = Provider()
     result = module.generate_job(job_id="job", output_dir=tmp_path, provider=second,
                                  converter=convert, measure=lambda _: .5, resume=True,
@@ -228,7 +228,7 @@ def test_edge_conservative_boundary_silence_cleanup_preserves_voice(tmp_path, lo
 
 def test_edge_fit_uses_exact_cleaned_downstream_wav(tmp_path, load_script):
     module = load_script("06_generate_edge_tts_segments.py")
-    directory = tmp_path / "job/05_segments"; directory.mkdir(parents=True)
+    directory = tmp_path / "job/.cache/work/05_segments"; directory.mkdir(parents=True)
     (directory / "translated_segments.json").write_text(json.dumps({"segments": [
         {"segment_id": "one", "start": 0, "end": 1, "text": "声"}]}))
     class Provider:

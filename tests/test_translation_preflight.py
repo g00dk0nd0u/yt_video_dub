@@ -5,9 +5,9 @@ import pytest
 
 def _write_job(tmp_path, *, source_text="hello", translated_text="こんにちは", second=True):
     job = tmp_path / "job"
-    input_dir = job / "03_translation_input"
-    output_dir = job / "04_translation_output"
-    segments_dir = job / "05_segments"
+    input_dir = job / ".cache/work/03_translation_input"
+    output_dir = job / ".cache/work/04_translation_output"
+    segments_dir = job / ".cache/work/05_segments"
     input_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(exist_ok=True)
     segments_dir.mkdir(exist_ok=True)
@@ -32,7 +32,7 @@ def _write_job(tmp_path, *, source_text="hello", translated_text="こんにち�
 
 def _run(module, tmp_path):
     code = module.main(["--job-id", "job", "--output-dir", str(tmp_path)])
-    report = json.loads((tmp_path / "job/05_segments/local_run_preflight.json").read_text())
+    report = json.loads((tmp_path / "job/.cache/work/05_segments/local_run_preflight.json").read_text())
     return code, report
 
 
@@ -54,7 +54,7 @@ def test_valid_handoff_technical_english_density_and_determinism(tmp_path, load_
 def test_missing_output_chunk_writes_not_ready_report(tmp_path, load_script):
     module = load_script("05_preflight_local_run.py")
     job, *_ = _write_job(tmp_path)
-    (job / "04_translation_output/chunk_0001.txt").unlink()
+    (job / ".cache/work/04_translation_output/chunk_0001.txt").unlink()
     code, report = _run(module, tmp_path)
     assert code == 1 and report["status"] == "not_ready"
     assert "chunk_0001.txt" in report["errors"][0]
@@ -65,7 +65,7 @@ def test_immutable_chunk_mismatch(tmp_path, load_script, field, value):
     module = load_script("05_preflight_local_run.py")
     job, _, translated, _ = _write_job(tmp_path)
     translated[0][field] = value
-    (job / "04_translation_output/chunk_0001.txt").write_text(
+    (job / ".cache/work/04_translation_output/chunk_0001.txt").write_text(
         "\n".join(json.dumps(row) for row in translated)
     )
     code, report = _run(module, tmp_path)
@@ -85,7 +85,7 @@ def test_final_segment_hard_failures(tmp_path, load_script, mutation, error):
     module = load_script("05_preflight_local_run.py")
     job, _, _, final = _write_job(tmp_path)
     mutation(final)
-    (job / "05_segments/translated_segments.json").write_text(
+    (job / ".cache/work/05_segments/translated_segments.json").write_text(
         json.dumps({"segments": final}, allow_nan=True)
     )
     code, report = _run(module, tmp_path)
@@ -97,7 +97,7 @@ def test_final_segment_corrupted_duration_is_rejected(tmp_path, load_script):
     module = load_script("05_preflight_local_run.py")
     job, _, _, final = _write_job(tmp_path)
     final[0]["duration"] = 99.0
-    (job / "05_segments/translated_segments.json").write_text(
+    (job / ".cache/work/05_segments/translated_segments.json").write_text(
         json.dumps({"segments": final})
     )
     code, report = _run(module, tmp_path)
@@ -109,7 +109,7 @@ def test_final_segment_non_finite_duration_is_rejected(tmp_path, load_script):
     module = load_script("05_preflight_local_run.py")
     job, _, _, final = _write_job(tmp_path)
     final[0]["duration"] = float("nan")
-    (job / "05_segments/translated_segments.json").write_text(
+    (job / ".cache/work/05_segments/translated_segments.json").write_text(
         json.dumps({"segments": final}, allow_nan=True)
     )
     code, report = _run(module, tmp_path)
@@ -123,7 +123,7 @@ def test_blank_translation_fails_but_empty_source_is_allowed(tmp_path, load_scri
     code, _ = _run(module, tmp_path)
     assert code == 1
     job, _, _, final = _write_job(tmp_path, source_text="", translated_text="", second=False)
-    (job / "05_segments/translated_segments.json").write_text(json.dumps({"segments": final}))
+    (job / ".cache/work/05_segments/translated_segments.json").write_text(json.dumps({"segments": final}))
     code, report = _run(module, tmp_path)
     assert code == 0 and report["source_empty_units"] == 1
 
@@ -133,13 +133,13 @@ def test_fingerprint_changes_and_stale_final_is_rejected(tmp_path, load_script):
     job, _, translated, final = _write_job(tmp_path)
     _, original = _run(module, tmp_path)
     translated[0]["text"] += "！"
-    (job / "04_translation_output/chunk_0001.txt").write_text(
+    (job / ".cache/work/04_translation_output/chunk_0001.txt").write_text(
         "\n".join(json.dumps(row, ensure_ascii=False) for row in translated)
     )
     code, report = _run(module, tmp_path)
     assert code == 1 and "stale" in report["errors"][0]
     final[0]["text"] = translated[0]["text"]
-    (job / "05_segments/translated_segments.json").write_text(json.dumps({"segments": final}))
+    (job / ".cache/work/05_segments/translated_segments.json").write_text(json.dumps({"segments": final}))
     code, changed = _run(module, tmp_path)
     assert code == 0
     assert changed["translation_fingerprint"] != original["translation_fingerprint"]

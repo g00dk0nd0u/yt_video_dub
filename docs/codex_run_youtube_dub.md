@@ -31,6 +31,6 @@ Codex CLI は ChatGPT account sign-in を使います。paid translation API、A
 
 ## Report
 
-成功時は完成動画 path、失敗時は停止 stage を報告します。詳細の primary handoff は常に `output/latest_run.txt` です。同じ command を再実行すると Edge TTS cache を resume します。
+成功時は完成動画 path、失敗時は停止 stage を報告します。詳細の primary handoff は job ごとの `output/<video_id>/.cache/diagnostic.json` です。失敗・割込時は `.cache/work/` の作業証拠を保持するため、同じ command で resume できます。
 
 `output/**` はすべて local runtime/cache で Git ignored です。`output/.gitkeep` 以外の生成物を commit/push しません。

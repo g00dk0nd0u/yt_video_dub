@@ -6,7 +6,7 @@ import pytest
 
 def test_chunks_use_normalized_units(tmp_path, load_script):
     module = load_script("03_make_translation_chunks.py")
-    job = tmp_path / "job" / "02_transcript"
+    job = tmp_path / "job" / ".cache/work/02_transcript"
     job.mkdir(parents=True)
     (job / "transcript_raw.json").write_text(json.dumps({"segments": [{
         "segment_id": "seg_0001", "start": 0, "end": 1, "text": "raw"
@@ -16,7 +16,7 @@ def test_chunks_use_normalized_units(tmp_path, load_script):
         "available_duration": 1.3, "source_text": "normalized"
     }]}))
     module.main(["--job-id", "job", "--output-dir", str(tmp_path)])
-    item = json.loads((tmp_path / "job/03_translation_input/chunk_0001.txt").read_text())
+    item = json.loads((tmp_path / "job/.cache/work/03_translation_input/chunk_0001.txt").read_text())
     assert item == {"segment_id": "utt_0001", "start": 0.2, "end": 1.5,
                     "duration": 1.3, "text": "normalized"}
 

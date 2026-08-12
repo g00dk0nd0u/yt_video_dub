@@ -82,7 +82,7 @@ def test_matrix_snapshots_once_warms_first_and_runs_fixed_order(load_script, mon
     assert summary_workers == [1, 2, 4]
     assert artifact["candidate_order"] == [1, 2, 4]
     assert artifact["segment_ids"] == ["empty", "utt_1", "utt_2"]
-    assert all(item["path"].startswith("10_metrics/concurrency_benchmarks/") for item in artifact["samples"])
+    assert all(item["path"].startswith(".cache/work/10_metrics/concurrency_benchmarks/") for item in artifact["samples"])
     assert path.parent.name == "matrices"
     assert len(list(path.parent.parent.glob("*.json"))) == 3
     assert artifact["status"] == "completed"

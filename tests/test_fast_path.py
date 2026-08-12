@@ -23,19 +23,19 @@ def _wav_bytes(frames, rate=1000):
 def test_absolute_audio_placement_and_overflow_report(tmp_path, load_script):
     module = load_script("07_build_dub_audio.py")
     job = tmp_path / "job"
-    tts = job / "06_tts"
+    tts = job / ".cache/work/06_tts"
     tts.mkdir(parents=True)
     _wav(tts / "one.wav", 2000)
     _wav(tts / "two.wav", 200)
     items = [
         {"index": 1, "segment_id": "utt_0001", "start": 0.0, "end": 1.0,
-         "status": "generated", "wav_path": "06_tts/one.wav"},
+         "status": "generated", "wav_path": ".cache/work/06_tts/one.wav"},
         {"index": 2, "segment_id": "utt_0002", "start": 1.0, "end": 1.5,
-         "status": "generated", "wav_path": "06_tts/two.wav"},
+         "status": "generated", "wav_path": ".cache/work/06_tts/two.wav"},
     ]
     (tts / "tts_manifest.json").write_text(json.dumps({"items": items}))
     module.main(["--job-id", "job", "--output-dir", str(tmp_path)])
-    manifest = json.loads((job / "07_audio/dub_audio_manifest.json").read_text())
+    manifest = json.loads((job / ".cache/work/07_audio/dub_audio_manifest.json").read_text())
     assert manifest["items"][0]["timing_status"] == "overflow_clipped"
     assert manifest["items"][0]["clipped"] is True
     assert manifest["items"][1]["actual_start"] == 1.0
@@ -57,10 +57,10 @@ def test_h264_video_codec_keeps_copy_fast_path(tmp_path, load_script, monkeypatc
     module = load_script("08_mux_video.py")
     source_codec = "h264"
     job = tmp_path / "job"
-    (job / "01_source").mkdir(parents=True)
-    (job / "07_audio").mkdir()
-    (job / "01_source/source.mp4").touch()
-    (job / "07_audio/dub_audio.wav").touch()
+    (job / ".cache/work/01_source").mkdir(parents=True)
+    (job / ".cache/work/07_audio").mkdir()
+    (job / ".cache/work/01_source/source.mp4").touch()
+    (job / ".cache/work/07_audio/dub_audio.wav").touch()
     codecs = iter([source_codec, source_codec])
     monkeypatch.setattr(module, "_probe_video_stream",
                         lambda *_: {"codec_name": next(codecs)})
@@ -71,7 +71,7 @@ def test_h264_video_codec_keeps_copy_fast_path(tmp_path, load_script, monkeypatc
     assert module.main(["--job-id", "job", "--output-dir", str(tmp_path), "--quiet"]) == 0
 
     assert "-c:v copy" in " ".join(commands[0])
-    manifest = json.loads((job / "07_audio/fast_mux_manifest.json").read_text())
+    manifest = json.loads((job / ".cache/work/07_audio/fast_mux_manifest.json").read_text())
     assert manifest["video_mode"] == "copy"
     assert manifest["compatibility_fallback_used"] is False
     assert manifest["compatibility_synchronous_fallback_used"] is False
@@ -84,10 +84,10 @@ def test_unsafe_video_codec_transcodes_and_validates_h264(
 ):
     module = load_script("08_mux_video.py")
     job = tmp_path / "job"
-    (job / "01_source").mkdir(parents=True)
-    (job / "07_audio").mkdir()
-    (job / "01_source/source.mp4").touch()
-    (job / "07_audio/dub_audio.wav").touch()
+    (job / ".cache/work/01_source").mkdir(parents=True)
+    (job / ".cache/work/07_audio").mkdir()
+    (job / ".cache/work/01_source/source.mp4").touch()
+    (job / ".cache/work/07_audio/dub_audio.wav").touch()
     codecs = iter([source_codec, "h264"])
     monkeypatch.setattr(module, "_probe_video_stream",
                         lambda *_: {"codec_name": next(codecs)})
@@ -103,7 +103,7 @@ def test_unsafe_video_codec_transcodes_and_validates_h264(
     assert "-movflags +faststart" in joined
     assert "volume=-38.0dB" in joined
     assert "-shortest" not in commands[0]
-    manifest = json.loads((job / "07_audio/fast_mux_manifest.json").read_text())
+    manifest = json.loads((job / ".cache/work/07_audio/fast_mux_manifest.json").read_text())
     assert manifest["source_video_codec"] == source_codec
     assert manifest["output_video_codec"] == "h264"
     assert manifest["video_mode"] == "transcode"
@@ -115,10 +115,10 @@ def test_unsafe_video_codec_transcodes_and_validates_h264(
 def test_mux_rejects_incompatible_final_codec(tmp_path, load_script, monkeypatch):
     module = load_script("08_mux_video.py")
     job = tmp_path / "job"
-    (job / "01_source").mkdir(parents=True)
-    (job / "07_audio").mkdir()
-    (job / "01_source/source.mp4").touch()
-    (job / "07_audio/dub_audio.wav").touch()
+    (job / ".cache/work/01_source").mkdir(parents=True)
+    (job / ".cache/work/07_audio").mkdir()
+    (job / ".cache/work/01_source/source.mp4").touch()
+    (job / ".cache/work/07_audio/dub_audio.wav").touch()
     codecs = iter(["av1", "av1"])
     monkeypatch.setattr(module, "_probe_video_stream",
                         lambda *_: {"codec_name": next(codecs)})
@@ -126,17 +126,17 @@ def test_mux_rejects_incompatible_final_codec(tmp_path, load_script, monkeypatch
 
     with pytest.raises(module.MuxVideoError, match="compatibility validation"):
         module.main(["--job-id", "job", "--output-dir", str(tmp_path), "--quiet"])
-    assert not (job / "07_audio/fast_mux_manifest.json").exists()
+    assert not (job / ".cache/work/07_audio/fast_mux_manifest.json").exists()
 
 
 def test_valid_background_cache_is_copied_with_original_audio_mix(tmp_path, load_script, monkeypatch):
     module = load_script("08_mux_video.py")
     job = tmp_path / "job"
-    (job / "01_source").mkdir(parents=True)
-    (job / "07_audio").mkdir()
-    source = job / "01_source/source.mp4"
-    compat = job / "01_source/compat_h264.mp4"
-    source.touch(); compat.touch(); (job / "07_audio/dub_audio.wav").touch()
+    (job / ".cache/work/01_source").mkdir(parents=True)
+    (job / ".cache/work/07_audio").mkdir()
+    source = job / ".cache/work/01_source/source.mp4"
+    compat = job / ".cache/work/01_source/compat_h264.mp4"
+    source.touch(); compat.touch(); (job / ".cache/work/07_audio/dub_audio.wav").touch()
     codecs = iter(["av1", "h264"])
     monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": next(codecs)})
     commands = []
@@ -162,10 +162,10 @@ def test_valid_background_cache_is_copied_with_original_audio_mix(tmp_path, load
 def test_background_failure_uses_original_synchronous_transcode(tmp_path, load_script, monkeypatch):
     module = load_script("08_mux_video.py")
     job = tmp_path / "job"
-    (job / "01_source").mkdir(parents=True)
-    (job / "07_audio").mkdir()
-    (job / "01_source/source.mp4").touch()
-    (job / "07_audio/dub_audio.wav").touch()
+    (job / ".cache/work/01_source").mkdir(parents=True)
+    (job / ".cache/work/07_audio").mkdir()
+    (job / ".cache/work/01_source/source.mp4").touch()
+    (job / ".cache/work/07_audio/dub_audio.wav").touch()
     codecs = iter(["av1", "h264"])
     monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": next(codecs)})
     commands = []
@@ -188,11 +188,11 @@ def test_cache_copy_mux_failure_retries_original_source_transcode(
 ):
     module = load_script("08_mux_video.py")
     job = tmp_path / "job"
-    (job / "01_source").mkdir(parents=True)
-    (job / "07_audio").mkdir()
-    source = job / "01_source/source.mp4"
-    compat = job / "01_source/compat_h264.mp4"
-    source.touch(); compat.touch(); (job / "07_audio/dub_audio.wav").touch()
+    (job / ".cache/work/01_source").mkdir(parents=True)
+    (job / ".cache/work/07_audio").mkdir()
+    source = job / ".cache/work/01_source/source.mp4"
+    compat = job / ".cache/work/01_source/compat_h264.mp4"
+    source.touch(); compat.touch(); (job / ".cache/work/07_audio/dub_audio.wav").touch()
     codecs = iter(["av1", "h264"])
     monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": next(codecs)})
     commands = []
@@ -227,11 +227,11 @@ def test_cache_copy_mux_and_synchronous_fallback_failure_is_bounded(
 ):
     module = load_script("08_mux_video.py")
     job = tmp_path / "job"
-    (job / "01_source").mkdir(parents=True)
-    (job / "07_audio").mkdir()
-    source = job / "01_source/source.mp4"
-    compat = job / "01_source/compat_h264.mp4"
-    source.touch(); compat.touch(); (job / "07_audio/dub_audio.wav").touch()
+    (job / ".cache/work/01_source").mkdir(parents=True)
+    (job / ".cache/work/07_audio").mkdir()
+    source = job / ".cache/work/01_source/source.mp4"
+    compat = job / ".cache/work/01_source/compat_h264.mp4"
+    source.touch(); compat.touch(); (job / ".cache/work/07_audio/dub_audio.wav").touch()
     monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": "av1"})
     commands = []
 
@@ -327,17 +327,17 @@ def test_resume_cache_requires_same_segment_and_voice_and_preserves_fit_metadata
 def test_unchanged_resume_reuses_wav_and_keeps_fitted_metadata(tmp_path, load_script, monkeypatch):
     module = load_script("06_generate_tts_segments.py")
     job = tmp_path / "job"
-    (job / "05_segments").mkdir(parents=True)
-    (job / "06_tts").mkdir()
+    (job / ".cache/work/05_segments").mkdir(parents=True)
+    (job / ".cache/work/06_tts").mkdir()
     segment = {"segment_id": "utt_0001", "start": 0.0, "end": 4.0, "text": "同じ翻訳"}
-    (job / "05_segments/translated_segments.json").write_text(
+    (job / ".cache/work/05_segments/translated_segments.json").write_text(
         json.dumps({"segments": [segment]})
     )
-    _wav(job / "06_tts/segment_000001.wav", 3980)
+    _wav(job / ".cache/work/06_tts/segment_000001.wav", 3980)
     metadata = module._fit_fields(4.0, 4.32, 3.98, 1.08, "fitted", 1)
-    (job / "06_tts/tts_manifest.json").write_text(json.dumps({
+    (job / ".cache/work/06_tts/tts_manifest.json").write_text(json.dumps({
         "base_url": "http://aivis", "speaker_id": 10, "items": [{
-            "index": 1, **segment, "wav_path": "06_tts/segment_000001.wav",
+            "index": 1, **segment, "wav_path": ".cache/work/06_tts/segment_000001.wav",
             "status": "generated", **metadata,
         }]
     }))
@@ -347,10 +347,10 @@ def test_unchanged_resume_reuses_wav_and_keeps_fitted_metadata(tmp_path, load_sc
     module.main(["--job-id", "job", "--output-dir", str(tmp_path),
                  "--base-url", "http://aivis/", "--speaker-id", "10", "--resume"])
 
-    item = json.loads((job / "06_tts/tts_manifest.json").read_text())["items"][0]
+    item = json.loads((job / ".cache/work/06_tts/tts_manifest.json").read_text())["items"][0]
     assert item["status"] == "reused"
     assert {field: item[field] for field in module.FIT_METADATA_FIELDS} == metadata
-    run_metrics = json.loads((job / "06_tts/tts_manifest.json").read_text())["run_metrics"]
+    run_metrics = json.loads((job / ".cache/work/06_tts/tts_manifest.json").read_text())["run_metrics"]
     assert run_metrics["selected_units"] == 1
     assert run_metrics["reused_units"] == 1
     assert run_metrics["generated_units"] == 0
@@ -363,8 +363,8 @@ def test_corrected_text_resume_regenerates_and_updates_selective_retry_artifact(
 ):
     module = load_script("06_generate_tts_segments.py")
     job = tmp_path / "job"
-    segments_dir = job / "05_segments"
-    tts_dir = job / "06_tts"
+    segments_dir = job / ".cache/work/05_segments"
+    tts_dir = job / ".cache/work/06_tts"
     segments_dir.mkdir(parents=True)
     tts_dir.mkdir()
     current_segment = {
@@ -380,10 +380,10 @@ def test_corrected_text_resume_regenerates_and_updates_selective_retry_artifact(
     (tts_dir / "tts_manifest.json").write_text(json.dumps({
         "base_url": "http://aivis", "speaker_id": 10, "items": [
             {"index": 1, "segment_id": "utt_0001", "start": 0.0, "end": 4.0,
-             "text": "長い旧翻訳", "wav_path": "06_tts/segment_000001.wav",
+             "text": "長い旧翻訳", "wav_path": ".cache/work/06_tts/segment_000001.wav",
              "status": "generated", **old_ng},
             {"index": 2, "segment_id": "utt_0002", "start": 4.0, "end": 8.0,
-             "text": "別の長い翻訳", "wav_path": "06_tts/segment_000002.wav",
+             "text": "別の長い翻訳", "wav_path": ".cache/work/06_tts/segment_000002.wav",
              "status": "generated", **old_ng},
         ]
     }))
@@ -419,8 +419,8 @@ def test_tts_run_metrics_count_normal_and_speed_fit_synthesis(
 ):
     module = load_script("06_generate_tts_segments.py")
     job = tmp_path / "job"
-    (job / "05_segments").mkdir(parents=True)
-    (job / "05_segments/translated_segments.json").write_text(json.dumps({
+    (job / ".cache/work/05_segments").mkdir(parents=True)
+    (job / ".cache/work/05_segments/translated_segments.json").write_text(json.dumps({
         "segments": [
             {"segment_id": "ok", "start": 0.0, "end": 1.0, "text": "通常"},
             {"segment_id": "fit", "start": 1.0, "end": 2.0, "text": "調整"},
@@ -440,7 +440,7 @@ def test_tts_run_metrics_count_normal_and_speed_fit_synthesis(
     module.main(["--job-id", "job", "--output-dir", str(tmp_path),
                  "--base-url", "http://aivis", "--speaker-id", "10"])
 
-    metrics = json.loads((job / "06_tts/tts_manifest.json").read_text())["run_metrics"]
+    metrics = json.loads((job / ".cache/work/06_tts/tts_manifest.json").read_text())["run_metrics"]
     assert metrics["selected_units"] == 5
     assert metrics["generated_units"] == 3
     assert metrics["skipped_empty_units"] == 2

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -38,9 +39,13 @@ class RunReport:
             "environment": {"python": sys.version.split()[0], "codex_cli": _command_version(["codex", "--version"]),
                             "edge_tts": _command_version([sys.executable, "-m", "edge_tts", "--version"]),
                             "ffmpeg": _command_version(["ffmpeg", "-version"])},
-            "stages": [], "translation": {}, "tts": {}, "failed_tts_items": [],
-            "quality_problems": [],
-            "repairs": [], "audio_qa": {}, "final": {"success": False},
+            "configuration": {}, "stages": [], "source": {}, "translation": [], "tts": [],
+            "quality": {"failed_tts_evidence": [], "original_problems": [],
+                        "repair_history": [], "tts_aggregate": {}, "audio_qa": {},
+                        "mux": {}, "compatibility": {}},
+            # Transitional in-memory keys used by the runner while a job is active.
+            "failed_tts_items": [], "quality_problems": [], "repairs": [], "audio_qa": {},
+            "final": {"success": False},
         }
 
     @staticmethod
@@ -64,10 +69,16 @@ class RunReport:
             self.data["failure"] = {key: safe_text(value) for key, value in failure.items()}
         job = self.output_dir / self.job_id
         job.mkdir(parents=True, exist_ok=True)
-        summary = job / "run_summary.json"
-        summary.write_text(json.dumps(self.data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        (self.output_dir / "latest_run.txt").write_text(self._render(), encoding="utf-8")
+        cache = job / ".cache"
+        cache.mkdir(parents=True, exist_ok=True)
+        diagnostic = cache / "diagnostic.json"
+        temporary = cache / ".diagnostic.json.tmp"
+        try:
+            temporary.write_text(json.dumps(self.data, ensure_ascii=False, indent=2) + "\n",
+                                 encoding="utf-8")
+            os.replace(temporary, diagnostic)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def _render(self) -> str:
         lines = []

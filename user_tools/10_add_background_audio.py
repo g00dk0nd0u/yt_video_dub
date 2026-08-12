@@ -44,17 +44,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def list_background_audio_jobs(output_dir: Path) -> list[str]:
     """Return job IDs containing every input required by this post-process."""
-    required = (
-        Path("dubbed_video.mp4"),
-        Path("07_audio/dub_audio.wav"),
-        Path("01_source/source.mp4"),
-    )
     if not output_dir.is_dir():
         return []
     return sorted(
         job_dir.name
         for job_dir in output_dir.iterdir()
-        if job_dir.is_dir() and all((job_dir / path).is_file() for path in required)
+        if job_dir.is_dir() and (job_dir / "dubbed_video.mp4").is_file()
+        and ((job_dir / ".cache/source_audio.mka").is_file()
+             or ((job_dir / "01_source/source.mp4").is_file()
+                 and (job_dir / "07_audio/dub_audio.wav").is_file()))
     )
 
 
@@ -169,13 +167,13 @@ def _identity(source: Path, model: str) -> dict[str, object]:
 
 
 def _valid_cache(cache_dir: Path, identity: dict[str, object]) -> bool:
-    manifest = cache_dir / "separation_manifest.json"
-    vocals, background = cache_dir / "vocals.wav", cache_dir / "accompaniment.wav"
+    diagnostic, background = cache_dir / "diagnostic.json", cache_dir / "accompaniment.flac"
     try:
-        saved = json.loads(manifest.read_text(encoding="utf-8"))
-        return saved.get("identity") == identity and all(
-            path.is_file() and path.stat().st_size > 0 for path in (vocals, background)
-        )
+        saved = json.loads(diagnostic.read_text(encoding="utf-8"))
+        current = saved.get("background_cache", {})
+        return (background.is_file() and background.stat().st_size > 0
+                and current.get("source_identity") == identity
+                and current.get("path") == ".cache/accompaniment.flac")
     except (OSError, ValueError, TypeError):
         return False
 
@@ -191,8 +189,7 @@ def _write_manifest_atomic(path: Path, payload: dict[str, object]) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _separate(args: argparse.Namespace, source: Path, cache_dir: Path,
-              identity: dict[str, object]) -> None:
+def _separate(args: argparse.Namespace, source: Path, cache_dir: Path) -> None:
     prefix = _demucs_prefix(args)
     cache_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="separate-", dir=cache_dir) as temporary:
@@ -203,51 +200,84 @@ def _separate(args: argparse.Namespace, source: Path, cache_dir: Path,
         _run([*prefix, "--two-stems=vocals", "-n", args.model, "-o", str(temp),
               str(extracted)], quiet=args.quiet)
         result_dir = temp / args.model / extracted.stem
-        generated_vocals = result_dir / "vocals.wav"
         generated_background = result_dir / "no_vocals.wav"
-        _require_file(generated_vocals, "Demucs vocals stem")
         _require_file(generated_background, "Demucs background stem")
-        shutil.copyfile(generated_vocals, cache_dir / "vocals.wav")
-        shutil.copyfile(generated_background, cache_dir / "accompaniment.wav")
-        (cache_dir / "separation_manifest.json").write_text(json.dumps({
-            "identity": identity,
-            "command": [*prefix, "--two-stems=vocals", "-n", args.model],
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        staged = cache_dir / ".accompaniment.flac.tmp.flac"
+        _run([args.ffmpeg_bin, "-y", "-i", str(generated_background), "-c:a", "flac", str(staged)],
+             quiet=args.quiet)
+        _require_file(staged, "temporary accompaniment cache")
+        _probe_duration(args.ffprobe_bin, staged)
+        os.replace(staged, cache_dir / "accompaniment.flac")
+
+
+def _update_diagnostic(path: Path, run: dict[str, object], *, invalidate_cache: bool = False) -> None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        payload = {}
+    history = payload.setdefault("background_runs", [])
+    history.append(run)
+    payload["background_runs"] = history[-20:]
+    if invalidate_cache:
+        payload.pop("background_cache", None)
+    _write_manifest_atomic(path, payload)
+
+
+def _stage_diagnostic(path: Path, run: dict[str, object]) -> Path:
+    """Prepare a validated diagnostic update without publishing it yet."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        payload = {}
+    history = payload.setdefault("background_runs", [])
+    history.append(run)
+    payload["background_runs"] = history[-20:]
+    payload["background_cache"] = {
+        "source_identity": run["source_identity"], "model": run["model"],
+        "published_at": run["timestamp"], "path": ".cache/accompaniment.flac",
+    }
+    staged = path.with_name(".diagnostic.json.success.tmp")
+    staged.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    json.loads(staged.read_text(encoding="utf-8"))
+    return staged
 
 
 def add_background_audio(args: argparse.Namespace) -> Path:
     started = monotonic()
     job_dir = Path(args.output_dir) / args.job_id
-    source = job_dir / "01_source" / "source.mp4"
+    cache_dir = job_dir / ".cache"
+    new_source = cache_dir / "source_audio.mka"
+    source = new_source if new_source.is_file() else job_dir / "01_source" / "source.mp4"
     standard = job_dir / "dubbed_video.mp4"
-    dub_audio = job_dir / "07_audio" / "dub_audio.wav"
+    legacy_dub_audio = job_dir / "07_audio" / "dub_audio.wav"
     output = job_dir / "dubbed_video_with_bg.mp4"
-    cache_dir = job_dir / "09_background"
-    manifest_path = cache_dir / "background_manifest.json"
-    temporary_manifest = cache_dir / ".background_manifest.success.tmp"
+    diagnostic_path = cache_dir / "diagnostic.json"
     temporary_output = job_dir / "dubbed_video_with_bg.tmp.mp4"
     output_backup = job_dir / ".dubbed_video_with_bg.backup.mp4"
+    staged_diagnostic = cache_dir / ".diagnostic.json.success.tmp"
     cache_reused = False
+    cache_generated = False
     manifest: dict[str, object] = {
-        "source_video": str(source), "source_audio": str(source), "separation_backend": BACKEND,
-        "model": args.model, "cache_reused": False, "vocals_path": str(cache_dir / "vocals.wav"),
-        "accompaniment_path": str(cache_dir / "accompaniment.wav"),
+        "timestamp": datetime.now(timezone.utc).isoformat(), "source_identity": None,
+        "demucs_backend": BACKEND, "model": args.model, "accompaniment_cache_reused": False,
         "background_db": args.background_db, "final_output_path": str(output), "success": False,
     }
     try:
-        for path, label in ((source, "source video"), (standard, "standard dubbed video"),
-                            (dub_audio, "Japanese dub audio")):
+        for path, label in ((source, "source audio"), (standard, "standard dubbed video")):
             _require_file(path, label)
+        if source != new_source:
+            _require_file(legacy_dub_audio, "legacy Japanese dub audio")
         cache_dir.mkdir(parents=True, exist_ok=True)
         identity = _identity(source, args.model)
+        manifest["source_identity"] = identity
         cache_reused = _valid_cache(cache_dir, identity)
         if not cache_reused:
-            _separate(args, source, cache_dir, identity)
+            _separate(args, source, cache_dir)
+            cache_generated = True
         duration = _probe_duration(args.ffprobe_bin, standard)
         filter_graph = (
-            "[1:a:0]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo[dub];"
-            "[2:a:0]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo,"
+            "[0:a:0]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo[dub];"
+            "[1:a:0]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo,"
             f"volume={args.background_db:g}dB[background];"
             f"[dub][background]amix=inputs=2:duration=longest:normalize=0,"
             f"apad,atrim=duration={duration:.6f},aresample=48000,"
@@ -255,8 +285,8 @@ def add_background_audio(args: argparse.Namespace) -> Path:
         )
         temporary_output.unlink(missing_ok=True)
         command = [
-            args.ffmpeg_bin, "-y", "-i", str(standard), "-i", str(dub_audio),
-            "-i", str(cache_dir / "accompaniment.wav"), "-filter_complex", filter_graph,
+            args.ffmpeg_bin, "-y", "-i", str(standard), "-i", str(cache_dir / "accompaniment.flac"),
+            "-filter_complex", filter_graph,
             "-map", "0:v:0", "-map", "[mixed]", "-c:v", "copy", "-c:a", "aac",
             "-ar", "48000", "-ac", "2", "-movflags", "+faststart",
             "-t", f"{duration:.6f}", str(temporary_output),
@@ -269,24 +299,27 @@ def add_background_audio(args: argparse.Namespace) -> Path:
                 f"Final duration mismatch: expected {duration:.3f}s, got {final_duration:.3f}s"
             )
         final_audio_format = _probe_audio_format(args.ffprobe_bin, temporary_output)
-        manifest.update({"cache_reused": cache_reused, "final_duration": final_duration,
+        manifest.update({"accompaniment_cache_reused": cache_reused, "duration": final_duration,
                          "final_audio_format": final_audio_format, "success": True,
                          "ffmpeg_command": command})
         manifest["elapsed_time_seconds"] = round(monotonic() - started, 3)
-        temporary_manifest.write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-        )
-
-        output_backup.unlink(missing_ok=True)
+        staged_diagnostic = _stage_diagnostic(diagnostic_path, manifest)
+        try:
+            output_backup.unlink(missing_ok=True)
+        except OSError:
+            pass
         if output.exists():
             os.replace(output, output_backup)
         try:
             os.replace(temporary_output, output)
-            os.replace(temporary_manifest, manifest_path)
+            os.replace(staged_diagnostic, diagnostic_path)
         except Exception:
-            output.unlink(missing_ok=True)
-            if output_backup.exists():
-                os.replace(output_backup, output)
+            try:
+                output.unlink(missing_ok=True)
+                if output_backup.exists():
+                    os.replace(output_backup, output)
+            except OSError:
+                pass
             raise
         try:
             output_backup.unlink(missing_ok=True)
@@ -294,18 +327,24 @@ def add_background_audio(args: argparse.Namespace) -> Path:
             pass
         return output
     except Exception as exc:
-        temporary_output.unlink(missing_ok=True)
-        temporary_manifest.unlink(missing_ok=True)
-        if output_backup.exists() and not output.exists():
-            os.replace(output_backup, output)
-        manifest.update({"cache_reused": cache_reused, "error": str(exc)})
+        try:
+            temporary_output.unlink(missing_ok=True)
+            staged_diagnostic.unlink(missing_ok=True)
+            if output_backup.exists() and not output.exists():
+                os.replace(output_backup, output)
+        except OSError:
+            pass
+        if cache_generated:
+            try:
+                (cache_dir / "accompaniment.flac").unlink(missing_ok=True)
+            except OSError:
+                pass
+        manifest.update({"accompaniment_cache_reused": cache_reused, "error": str(exc)[-1200:]})
         manifest["success"] = False
         manifest["elapsed_time_seconds"] = round(monotonic() - started, 3)
         if cache_dir.exists():
-            try:
-                _write_manifest_atomic(manifest_path, manifest)
-            except OSError:
-                pass
+            try: _update_diagnostic(diagnostic_path, manifest, invalidate_cache=cache_generated)
+            except OSError: pass
         raise
 
 

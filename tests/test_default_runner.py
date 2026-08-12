@@ -41,12 +41,12 @@ def _install_default_workflow_fakes(module, monkeypatch, tmp_path, calls, task):
 
     def prepare(_args):
         calls.append("Prepare")
-        path = job / "01_source/job.json"
+        path = job / ".cache/work/01_source/job.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"acquisition": {}}))
     def audio(_args):
         calls.append("Audio")
-        path = job / "07_audio/dub_audio_manifest.json"
+        path = job / ".cache/work/07_audio/dub_audio_manifest.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"warnings_count": 0, "items": []}))
     modules = {
@@ -239,7 +239,8 @@ def test_cli_forwards_tts_workers(monkeypatch, tmp_path):
 
 def test_invalid_url_does_not_advertise_stale_diagnostic(tmp_path, capsys):
     module = _module()
-    stale = tmp_path / "latest_run.txt"
+    stale = tmp_path / "previous/.cache/diagnostic.json"
+    stale.parent.mkdir(parents=True)
     stale.write_text("previous run")
     assert module.main(["--url", "https://example.com/not-youtube",
                         "--output-dir", str(tmp_path)]) == 1
@@ -252,7 +253,7 @@ def test_success_writes_diagnostics_and_zero_quality_summary(tmp_path):
     module = _module()
     job = tmp_path / "abc123"
     def audio():
-        path = job / "07_audio/dub_audio_manifest.json"
+        path = job / ".cache/work/07_audio/dub_audio_manifest.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps({"warnings_count": 0, "items": []}))
     stages = {name: (lambda: None) for name in
@@ -260,10 +261,10 @@ def test_success_writes_diagnostics_and_zero_quality_summary(tmp_path):
     stages["TTS"] = lambda: {"run_metrics": {"failed_units": 0, "fit_ng_count": 0}, "items": []}
     stages["Audio"] = audio
     module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
-    summary = json.loads((job / "run_summary.json").read_text())
+    summary = json.loads((job / ".cache/diagnostic.json").read_text())
     assert summary["final"]["success"] is True
     assert summary["audio_qa"] == {"warnings_count": 0, "clipped_count": 0, "overflow_count": 0}
-    assert (tmp_path / "latest_run.txt").exists()
+    assert (job / ".cache/diagnostic.json").exists()
 
 
 @pytest.mark.parametrize("mux_diagnostic", [
@@ -283,7 +284,7 @@ def test_mux_codec_decision_is_in_primary_diagnostics(tmp_path, mux_diagnostic):
     job = tmp_path / "abc123"
 
     def audio():
-        path = job / "07_audio/dub_audio_manifest.json"
+        path = job / ".cache/work/07_audio/dub_audio_manifest.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps({"warnings_count": 0, "items": []}))
 
@@ -295,10 +296,10 @@ def test_mux_codec_decision_is_in_primary_diagnostics(tmp_path, mux_diagnostic):
 
     module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
 
-    summary = json.loads((job / "run_summary.json").read_text())
+    summary = json.loads((job / ".cache/diagnostic.json").read_text())
     mux_result = next(stage for stage in summary["stages"]
                       if stage["name"] == "Mux")["result"]
-    diagnostic = (tmp_path / "latest_run.txt").read_text()
+    diagnostic = (job / ".cache/diagnostic.json").read_text()
     for key, value in mux_diagnostic.items():
         rendered = str(value).lower()
         assert key in mux_result and rendered in mux_result.lower()
@@ -322,12 +323,12 @@ def test_success_diagnostic_has_compact_acquisition_summary(tmp_path, acquisitio
     job = tmp_path / "abc123"
 
     def prepare():
-        path = job / "01_source/job.json"
+        path = job / ".cache/work/01_source/job.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps({"acquisition": acquisition}))
 
     def audio():
-        path = job / "07_audio/dub_audio_manifest.json"
+        path = job / ".cache/work/07_audio/dub_audio_manifest.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps({"warnings_count": 0, "items": []}))
 
@@ -336,8 +337,8 @@ def test_success_diagnostic_has_compact_acquisition_summary(tmp_path, acquisitio
     stages.update(Prepare=prepare, TTS=lambda: {
         "run_metrics": {"failed_units": 0, "fit_ng_count": 0}, "items": []}, Audio=audio)
     module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
-    diagnostic = (tmp_path / "latest_run.txt").read_text()
-    summary = json.loads((job / "run_summary.json").read_text())
+    diagnostic = (job / ".cache/diagnostic.json").read_text()
+    summary = json.loads((job / ".cache/diagnostic.json").read_text())
     prepare_result = next(stage for stage in summary["stages"]
                           if stage["name"] == "Prepare")["result"]
     for item in expected:
@@ -355,8 +356,8 @@ def test_ng_fails_before_audio_and_finalizes_diagnostic(tmp_path):
     with pytest.raises(RuntimeError, match="no repair stage"):
         module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
     assert "Audio" not in calls and "Mux" not in calls
-    text = (tmp_path / "latest_run.txt").read_text()
-    assert "failed_stage: Repair #1" in text
+    text = (tmp_path / "abc123/.cache/diagnostic.json").read_text()
+    assert "Repair #1" in text
     assert "segment_id" in text
 
 
@@ -378,7 +379,7 @@ def test_closed_repair_loop_reaches_zero_clip_success(tmp_path):
     ])
     def audio():
         calls.append("Audio")
-        path = job / "07_audio/dub_audio_manifest.json"
+        path = job / ".cache/work/07_audio/dub_audio_manifest.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps({"warnings_count": 0, "items": [
             {"clipped": False, "timing_status": "ok"}]}))
@@ -387,10 +388,10 @@ def test_closed_repair_loop_reaches_zero_clip_success(tmp_path):
     stages.update(TTS=lambda: next(tts_round), Repair=lambda: [{"segment_id": "repair",
         "text_before": "長い文", "text_after": "短文", "target_chars": 2}], Audio=audio)
     module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
-    summary = json.loads((job / "run_summary.json").read_text())
+    summary = json.loads((job / ".cache/diagnostic.json").read_text())
     assert "Mux" in calls
-    assert summary["tts"]["fit_ng_count"] == 0
-    assert summary["tts"]["reused_units"] == 1
+    assert summary["quality"]["tts_aggregate"]["fit_ng_count"] == 0
+    assert summary["quality"]["tts_aggregate"]["reused_units"] == 1
     assert summary["audio_qa"] == {"warnings_count": 0, "clipped_count": 0, "overflow_count": 0}
     assert summary["repairs"][0]["duration_after"] == .8
     assert "items" not in next(x for x in summary["stages"] if x["name"] == "TTS")["result"]
@@ -428,7 +429,7 @@ def test_repair_can_succeed_in_rounds_three_through_five(tmp_path, success_round
 
     def audio():
         calls.append("Audio")
-        path = tmp_path / "abc123/07_audio/dub_audio_manifest.json"
+        path = tmp_path / "abc123/.cache/work/07_audio/dub_audio_manifest.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps({"warnings_count": 0, "items": []}))
 
@@ -489,7 +490,7 @@ def test_repairs_continue_through_unchanged_and_small_duration_improvements(tmp_
 
     def audio():
         calls.append("Audio")
-        path = tmp_path / "abc123/07_audio/dub_audio_manifest.json"
+        path = tmp_path / "abc123/.cache/work/07_audio/dub_audio_manifest.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps({"warnings_count": 0, "items": []}))
 
@@ -501,7 +502,7 @@ def test_repairs_continue_through_unchanged_and_small_duration_improvements(tmp_
 
     assert calls.count("Repair") == 4
     assert "Audio" in calls and "Mux" in calls
-    repairs = json.loads((tmp_path / "abc123/run_summary.json").read_text())["repairs"]
+    repairs = json.loads((tmp_path / "abc123/.cache/diagnostic.json").read_text())["repairs"]
     assert len(repairs) == 4
     assert all({"repair_round", "segment_id", "text_before", "text_after", "target_chars",
                 "duration_before", "duration_after", "final_fit_status"} <= row.keys()
@@ -571,14 +572,14 @@ def test_failed_tts_details_are_diagnostic_and_stop_audio_mux(tmp_path):
         module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
 
     assert "Audio" not in calls and "Mux" not in calls
-    summary = json.loads((tmp_path / "abc123/run_summary.json").read_text())
+    summary = json.loads((tmp_path / "abc123/.cache/diagnostic.json").read_text())
     assert summary["failed_tts_items"] == [{
         "segment_id": "utt_0002", "start": 7.86, "end": 9.97, "text": ">>",
         "error_type": "EdgeTTSError", "error_message": "Edge TTS request failed.",
         "coalesced": False,
     }]
-    diagnostic = (tmp_path / "latest_run.txt").read_text()
-    assert "FAILED TTS ITEMS" in diagnostic
+    diagnostic = (tmp_path / "abc123" / ".cache/diagnostic.json").read_text()
+    assert "failed_tts_items" in diagnostic
     assert "utt_0002" in diagnostic
     assert "provider_internal" not in diagnostic
 
@@ -591,11 +592,11 @@ def test_bare_video_id_is_canonicalized(tmp_path):
     stages["Prepare"] = lambda: captured.update(url="called")
     stages["TTS"] = lambda: {"run_metrics": {"failed_units": 0, "fit_ng_count": 0}, "items": []}
     def audio():
-        path = tmp_path / "OEkxKdhtQng/07_audio/dub_audio_manifest.json"
+        path = tmp_path / "OEkxKdhtQng/.cache/work/07_audio/dub_audio_manifest.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps({"warnings_count": 0, "items": []}))
     stages["Audio"] = audio
     result = module.run("OEkxKdhtQng", output_dir=str(tmp_path), stages=stages)
-    summary = json.loads((tmp_path / "OEkxKdhtQng/run_summary.json").read_text())
+    summary = json.loads((tmp_path / "OEkxKdhtQng/.cache/diagnostic.json").read_text())
     assert result == tmp_path / "OEkxKdhtQng/dubbed_video.mp4"
     assert summary["run"]["input_url"] == "https://www.youtube.com/watch?v=OEkxKdhtQng"

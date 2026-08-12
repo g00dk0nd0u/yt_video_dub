@@ -165,6 +165,6 @@ def test_prepare_records_source_contract_and_acquisition(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "_acquire_youtube_source", acquire)
     assert module.prepare_source(youtube_url="url", local_video=None, job_id=None,
                                  output_dir=str(tmp_path)) == "video-id"
-    payload = json.loads((tmp_path / "video-id/01_source/job.json").read_text())
-    assert payload["source_path"] == "01_source/source.mp4"
+    payload = json.loads((tmp_path / "video-id/.cache/work/01_source/job.json").read_text())
+    assert payload["source_path"] == ".cache/work/01_source/source.mp4"
     assert payload["acquisition"]["source_reused"] is False

@@ -8,6 +8,8 @@ import importlib.util
 import json
 import math
 import os
+import shutil
+import subprocess
 import sys
 import threading
 from contextlib import contextmanager
@@ -221,10 +223,12 @@ def _acquisition_summary(job_path: Path) -> str:
 
 
 def _quality_problem(item: dict) -> dict:
-    return {key: item.get(key) for key in (
+    result = {key: item.get(key) for key in (
         "segment_id", "start", "end", "available_duration", "text", "raw_tts_duration",
         "original_converted_duration", "removed_leading_silence", "removed_trailing_silence",
-        "final_speech_duration", "final_tts_duration", "rate", "fit_status", "coalesced")}
+        "final_speech_duration", "final_tts_duration", "rate", "fit_status", "coalesced", "voice")}
+    result["actual_text_sent_to_tts"] = item.get("text")
+    return result
 
 
 def _failed_tts_item(item: dict) -> dict:
@@ -234,11 +238,70 @@ def _failed_tts_item(item: dict) -> dict:
 
 
 def _record_tts_diagnostics(report, manifest: dict) -> None:
-    report.data["tts"] = manifest.get("run_metrics", {})
+    report.data["quality"]["tts_aggregate"] = manifest.get("run_metrics", {})
+    report.data["tts"] = [_quality_problem(item) for item in manifest.get("items", [])]
     report.data["failed_tts_items"] = [
         _failed_tts_item(item) for item in manifest.get("items", [])
         if item.get("status") == "failed"
     ]
+    report.data["quality"]["failed_tts_evidence"] = report.data["failed_tts_items"]
+
+
+def _load_lightweight_diagnostics(report, paths) -> None:
+    """Snapshot text/timing evidence before successful work-tree removal."""
+    def load(path, default):
+        try:
+            return _json(path)
+        except (OSError, ValueError):
+            return default
+    raw = load(paths.transcript_raw_json_path, {})
+    normalized = load(paths.transcript_normalized_json_path, {})
+    final = load(paths.translated_segments_json_path, {})
+    report.data["source"] = {"original_transcript": raw, "normalized_transcript": normalized}
+    source_rows = (normalized if isinstance(normalized, list) else
+                   normalized.get("units", normalized.get("segments", [])))
+    final_rows = final.get("segments", final if isinstance(final, list) else [])
+    sources = {str(row.get("segment_id", row.get("unit_id", row.get("id")))): row for row in source_rows}
+    report.data["translation"] = [{
+        "segment_id": row.get("segment_id", row.get("id")), "start": row.get("start"),
+        "end": row.get("end"),
+        "source_text": row.get("source_text") or sources.get(str(row.get("segment_id", row.get("id"))), {}).get("source_text") or sources.get(str(row.get("segment_id", row.get("id"))), {}).get("text"),
+        "final_translated_text": row.get("translated_text") or row.get("text"),
+    } for row in final_rows]
+    report.data["quality"].update(
+        original_problems=report.data.get("quality_problems", []),
+        repair_history=report.data.get("repairs", []), audio_qa=report.data.get("audio_qa", {}))
+
+
+def _publish_source_audio(paths, *, ffmpeg_bin="ffmpeg", ffprobe_bin="ffprobe") -> None:
+    """Atomically retain only the primary source audio, without re-encoding."""
+    paths.cache_dir.mkdir(parents=True, exist_ok=True)
+    temporary = paths.cache_dir / ".source_audio.mka.tmp.mka"
+    temporary.unlink(missing_ok=True)
+    try:
+        subprocess.run([ffmpeg_bin, "-y", "-i", str(paths.source_video_path), "-map", "0:a:0",
+                        "-vn", "-c:a", "copy", str(temporary)], check=True,
+                       capture_output=True, text=True)
+        probe = subprocess.run([ffprobe_bin, "-v", "error", "-select_streams", "a:0",
+                                "-show_entries", "stream=codec_name:format=duration", "-of", "json",
+                                str(temporary)], check=True, capture_output=True, text=True)
+        payload = json.loads(probe.stdout)
+        if not payload.get("streams") or float(payload.get("format", {}).get("duration", 0)) <= 0:
+            raise RuntimeError("source audio validation failed")
+        os.replace(temporary, paths.source_audio_cache_path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _compact_success(paths, report) -> None:
+    if not paths.dubbed_video_path.is_file() or paths.dubbed_video_path.stat().st_size <= 0:
+        raise RuntimeError("final dubbed video is missing or empty")
+    _load_lightweight_diagnostics(report, paths)
+    _publish_source_audio(paths)
+    report.finalize(success=True, video=paths.dubbed_video_path)
+    # Both cache publications now exist and parse; only then remove bulky evidence.
+    json.loads(paths.diagnostic_path.read_text(encoding="utf-8"))
+    shutil.rmtree(paths.work_dir)
 
 
 def _mux_diagnostics(manifest: dict) -> dict:
@@ -264,6 +327,9 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
         raise RuntimeError("Prepare failed: YouTube URLから動画IDを取得できませんでした。")
     paths = build_job_paths(output_dir, job_id)
     report = RunReport(output_dir, job_id, url)
+    report.data["configuration"] = {"japanese_voice": voice, "tts_worker_count": tts_workers,
+                                    "max_repair_rounds": max_repair_rounds,
+                                    "fixed_source_timeline": True, "original_audio_db": -38.0}
     injected = stages is not None
     compatibility_task = None
     compatibility_result = None
@@ -344,7 +410,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
             report.stage(current, "OK", monotonic() - started, f"remaining_ng={len(problems)}")
             print(f"{current:.<16} OK  remaining NG={len(problems)}")
             last_success = current
-        report.data["tts"] = metrics
+        report.data["quality"]["tts_aggregate"] = metrics
         # Keep the original failure evidence even when repair succeeds.
         known = {x.get("segment_id") for x in report.data["quality_problems"]}
         report.data["quality_problems"].extend(_quality_problem(x) for x in problems
@@ -369,13 +435,22 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
         mux_manifest = (result if isinstance(result, dict) else
                         (_json(mux_manifest_path) if mux_manifest_path.exists() else {}))
         report.stage(current, "OK", monotonic() - started, _mux_diagnostics(mux_manifest)); last_success = current
+        report.data["quality"]["mux"] = _mux_diagnostics(mux_manifest)
         print(f"{current:.<16} OK  {monotonic() - started:.1f}s")
-        report.finalize(success=True, video=paths.dubbed_video_path)
+        current = "Cleanup"
+        if not paths.dubbed_video_path.exists() or not paths.source_video_path.exists():
+            # Unit-injected stages historically omit real media; production never takes this branch.
+            _load_lightweight_diagnostics(report, paths)
+            report.finalize(success=True, video=paths.dubbed_video_path)
+        else:
+            _compact_success(paths, report)
         return paths.dubbed_video_path
-    except Exception as exc:
+    except (Exception, KeyboardInterrupt) as exc:
         report.stage(current, "FAILED", 0, exc)
         report.finalize(success=False, failure={"failed_stage": current, "error_type": type(exc).__name__,
             "message": exc, "last_successful_stage": last_success, "same_command_can_resume": True})
+        if isinstance(exc, KeyboardInterrupt):
+            raise
         raise RuntimeError(f"{current} failed: {exc}") from exc
     finally:
         # Also runs for KeyboardInterrupt, which is intentionally not wrapped as a stage failure.
@@ -399,8 +474,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     try: video = run(url, output_dir=args.output_dir, voice=voice,
                      max_repair_rounds=args.max_repair_rounds, tts_workers=args.tts_workers)
-    except RuntimeError as exc: print(exc); print(f"Diagnostic: {Path(args.output_dir) / 'latest_run.txt'}"); return 1
-    print(f"\nCompleted.\nVideo: {video.as_posix()}\nDiagnostic: {Path(args.output_dir) / 'latest_run.txt'}")
+    except RuntimeError as exc: print(exc); print(f"Diagnostic: {Path(args.output_dir) / _canonical_youtube_input(url)[1] / '.cache/diagnostic.json'}"); return 1
+    print(f"\nCompleted.\nVideo: {video.as_posix()}\nDiagnostic: {video.parent / '.cache/diagnostic.json'}")
     return 0
 
 

@@ -22,7 +22,19 @@ YouTube URL または bare video ID を一度入力します。default route は
 
 ## Output / diagnostics
 
-Job artifact は `output/<video_id>/`、完成動画はその直下の `dubbed_video.mp4` です。`output/latest_run.txt` が成功・失敗双方の primary diagnostic handoff です。`output/**` は runtime/cache として Git ignored で、`output/.gitkeep` だけを track します。
+成功後の永続 layout は次のとおりです。`dubbed_video_with_bg.mp4` と `accompaniment.flac` は背景音生成後のみ存在します。
+
+```text
+output/<video_id>/
+├── dubbed_video.mp4
+├── dubbed_video_with_bg.mp4
+└── .cache/
+    ├── diagnostic.json
+    ├── source_audio.mka
+    └── accompaniment.flac
+```
+
+primary diagnostic handoff は `output/<video_id>/.cache/diagnostic.json` です。実行中の中間物は `.cache/work/` に置き、normal dub が完全に成功した後だけ削除します。失敗・割込時は resume と調査のため保持します。直前の numbered layout は、新layoutと競合しない場合に限り `.cache/work/` へ安全にadoptします。`output/**` は runtime/cache として Git ignored で、`output/.gitkeep` だけを track します。
 
 ## Optional AivisSpeech
 
