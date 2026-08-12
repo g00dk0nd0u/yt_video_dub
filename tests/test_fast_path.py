@@ -183,6 +183,74 @@ def test_background_failure_uses_original_synchronous_transcode(tmp_path, load_s
     assert manifest["compatibility_failure"] == "encode failed"
 
 
+def test_cache_copy_mux_failure_retries_original_source_transcode(
+    tmp_path, load_script, monkeypatch
+):
+    module = load_script("08_mux_video.py")
+    job = tmp_path / "job"
+    (job / "01_source").mkdir(parents=True)
+    (job / "07_audio").mkdir()
+    source = job / "01_source/source.mp4"
+    compat = job / "01_source/compat_h264.mp4"
+    source.touch(); compat.touch(); (job / "07_audio/dub_audio.wav").touch()
+    codecs = iter(["av1", "h264"])
+    monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": next(codecs)})
+    commands = []
+
+    def run(command, **_kwargs):
+        commands.append(command)
+        if len(commands) == 1:
+            raise module.subprocess.CalledProcessError(1, command, stderr="cache mux error")
+
+    monkeypatch.setattr(module.subprocess, "run", run)
+
+    manifest = module.mux_job(job_id="job", output_dir=str(tmp_path), quiet=True,
+        compatibility_result={"compatibility_video_path": compat,
+            "compatibility_task_started": True, "compatibility_background_used": True})
+
+    assert len(commands) == 2
+    assert str(compat) in commands[0] and "-c:v copy" in " ".join(commands[0])
+    fallback = " ".join(commands[1])
+    assert str(source) in commands[1]
+    assert "-c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p" in fallback
+    assert "volume=-38.0dB" in fallback and "-c:a aac" in fallback
+    assert manifest["video_mode"] == "transcode"
+    assert manifest["output_video_codec"] == "h264"
+    assert manifest["compatibility_background_used"] is True
+    assert manifest["compatibility_synchronous_fallback_used"] is True
+    assert "cache mux failed" in manifest["compatibility_failure"]
+    assert "synchronous fallback" in manifest["compatibility_failure"]
+
+
+def test_cache_copy_mux_and_synchronous_fallback_failure_is_bounded(
+    tmp_path, load_script, monkeypatch
+):
+    module = load_script("08_mux_video.py")
+    job = tmp_path / "job"
+    (job / "01_source").mkdir(parents=True)
+    (job / "07_audio").mkdir()
+    source = job / "01_source/source.mp4"
+    compat = job / "01_source/compat_h264.mp4"
+    source.touch(); compat.touch(); (job / "07_audio/dub_audio.wav").touch()
+    monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": "av1"})
+    commands = []
+
+    def fail(command, **_kwargs):
+        commands.append(command)
+        raise module.subprocess.CalledProcessError(len(commands), command, stderr="mux failed")
+
+    monkeypatch.setattr(module.subprocess, "run", fail)
+
+    with pytest.raises(module.MuxVideoError, match="synchronous fallback failed"):
+        module.mux_job(job_id="job", output_dir=str(tmp_path), quiet=True,
+            compatibility_result={"compatibility_video_path": compat,
+                "compatibility_task_started": True, "compatibility_background_used": True})
+
+    assert len(commands) == 2
+    assert "-c:v copy" in " ".join(commands[0])
+    assert "-c:v libx264" in " ".join(commands[1])
+
+
 def test_legacy_transcript_path_fallback(tmp_path):
     from path_layout import build_job_paths
     legacy = tmp_path / "job/transcript_original.json"

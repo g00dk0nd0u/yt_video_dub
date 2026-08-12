@@ -156,12 +156,41 @@ def mux_job(*, job_id: str, output_dir: str = "output", original_audio_db: float
     except FileNotFoundError as exc:
         raise MuxVideoError(f"ffmpeg not found: {ffmpeg_bin}") from exc
     except subprocess.CalledProcessError as exc:
-        stderr = (exc.stderr or "").strip()[-4000:] if quiet else ""
-        detail = f" stderr: {stderr}" if stderr else ""
-        raise MuxVideoError(
-            f"ffmpeg command failed with exit code {exc.returncode}.{detail} "
-            f"source_video_codec={source_video_codec} video_mode={video_mode}"
-        ) from exc
+        if source_video_path != original_source_path:
+            stderr = (exc.stderr or "").strip()[-2000:] if quiet else ""
+            failure = f"compatibility cache mux failed (exit code {exc.returncode})"
+            if stderr:
+                failure += f": {stderr}"
+            compatibility_result["compatibility_failure"] = (
+                failure + " -> synchronous fallback"
+            )[-2400:]
+            compatibility_result["compatibility_synchronous_fallback_used"] = True
+            source_video_path, video_mode = original_source_path, "transcode"
+            command = _build_ffmpeg_command(
+                ffmpeg_bin, source_video_path, dub_audio_path, output_video_path,
+                original_audio_db, video_mode,
+            )
+            if not quiet:
+                print(shlex.join(command))
+            try:
+                subprocess.run(command, check=True, capture_output=quiet, text=quiet)
+            except FileNotFoundError as retry_exc:
+                raise MuxVideoError(f"ffmpeg not found: {ffmpeg_bin}") from retry_exc
+            except subprocess.CalledProcessError as retry_exc:
+                retry_stderr = (retry_exc.stderr or "").strip()[-4000:] if quiet else ""
+                detail = f" stderr: {retry_stderr}" if retry_stderr else ""
+                raise MuxVideoError(
+                    f"ffmpeg synchronous fallback failed with exit code "
+                    f"{retry_exc.returncode}.{detail} source_video_codec={source_video_codec} "
+                    f"video_mode={video_mode}"
+                ) from retry_exc
+        else:
+            stderr = (exc.stderr or "").strip()[-4000:] if quiet else ""
+            detail = f" stderr: {stderr}" if stderr else ""
+            raise MuxVideoError(
+                f"ffmpeg command failed with exit code {exc.returncode}.{detail} "
+                f"source_video_codec={source_video_codec} video_mode={video_mode}"
+            ) from exc
 
     try:
         output_video_codec = _probe_video_stream(ffprobe_bin, output_video_path)["codec_name"]
