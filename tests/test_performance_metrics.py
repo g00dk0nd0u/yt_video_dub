@@ -39,7 +39,7 @@ def test_pipeline_selective_mode_and_translated_skip(tmp_path, load_script, monk
         "--skip-build-translated", "--segment-id", "utt_0001",
         "--segment-id", "utt_0002",
     ])
-    payload = json.loads((tmp_path / "job/10_metrics/benchmark.json").read_text())
+    payload = json.loads((tmp_path / "job/.cache/work/10_metrics/benchmark.json").read_text())
     assert payload["run_mode"] == "selective_retry"
     assert payload["stages"]["translated_build"] == {
         "status": "skipped", "seconds": 0.0,
@@ -52,7 +52,7 @@ def test_skip_tts_does_not_run_generator_or_reuse_stale_metrics(
     tmp_path, load_script, monkeypatch
 ):
     module = load_script("91_run_local_tts_pipeline.py")
-    manifest = tmp_path / "job/06_tts/tts_manifest.json"
+    manifest = tmp_path / "job/.cache/work/06_tts/tts_manifest.json"
     manifest.parent.mkdir(parents=True)
     manifest.write_text(json.dumps({"run_metrics": {"generated_units": 50}}))
     calls = []
@@ -65,7 +65,7 @@ def test_skip_tts_does_not_run_generator_or_reuse_stale_metrics(
 
     assert "06_generate_tts_segments.py" not in calls
     assert "07_build_dub_audio.py" in calls
-    payload = json.loads((tmp_path / "job/10_metrics/benchmark.json").read_text())
+    payload = json.loads((tmp_path / "job/.cache/work/10_metrics/benchmark.json").read_text())
     assert payload["stages"]["tts"] == {"status": "skipped", "seconds": 0.0}
     assert payload["tts"]["status"] == "skipped"
     assert payload["tts"]["generated_units"] == 0

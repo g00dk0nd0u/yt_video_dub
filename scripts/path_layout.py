@@ -19,36 +19,44 @@ class JobPaths:
         return self.output_dir / self.job_id
 
     @property
+    def cache_dir(self) -> Path:
+        return self.job_dir / ".cache"
+
+    @property
+    def work_dir(self) -> Path:
+        return self.cache_dir / "work"
+
+    @property
     def source_dir(self) -> Path:
-        return self.job_dir / "01_source"
+        return self.work_dir / "01_source"
 
     @property
     def transcript_dir(self) -> Path:
-        return self.job_dir / "02_transcript"
+        return self.work_dir / "02_transcript"
 
     @property
     def translation_input_dir(self) -> Path:
-        return self.job_dir / "03_translation_input"
+        return self.work_dir / "03_translation_input"
 
     @property
     def translation_output_dir(self) -> Path:
-        return self.job_dir / "04_translation_output"
+        return self.work_dir / "04_translation_output"
 
     @property
     def segments_dir(self) -> Path:
-        return self.job_dir / "05_segments"
+        return self.work_dir / "05_segments"
 
     @property
     def tts_dir(self) -> Path:
-        return self.job_dir / "06_tts"
+        return self.work_dir / "06_tts"
 
     @property
     def audio_dir(self) -> Path:
-        return self.job_dir / "07_audio"
+        return self.work_dir / "07_audio"
 
     @property
     def metrics_dir(self) -> Path:
-        return self.job_dir / "10_metrics"
+        return self.work_dir / "10_metrics"
 
     @property
     def benchmark_path(self) -> Path:
@@ -131,8 +139,25 @@ class JobPaths:
         return self.job_dir / "dubbed_video.mp4"
 
     @property
+    def background_dubbed_video_path(self) -> Path:
+        return self.job_dir / "dubbed_video_with_bg.mp4"
+
+    @property
+    def diagnostic_path(self) -> Path:
+        return self.cache_dir / "diagnostic.json"
+
+    @property
+    def source_audio_cache_path(self) -> Path:
+        return self.cache_dir / "source_audio.mka"
+
+    @property
+    def accompaniment_cache_path(self) -> Path:
+        return self.cache_dir / "accompaniment.flac"
+
+    @property
     def run_summary_path(self) -> Path:
-        return self.job_dir / "run_summary.json"
+        """Legacy alias; new runs write only diagnostic.json."""
+        return self.diagnostic_path
 
     def ensure_prepare_dirs(self) -> None:
         self.job_dir.mkdir(parents=True, exist_ok=True)

@@ -30,7 +30,17 @@ YouTube URL または bare video ID（例: `OEkxKdhtQng`）を一度入力する
 6. codec-compatible mux
 7. `output/<video_id>/dubbed_video.mp4` を生成
 
-音声は `--voice` で変更できます。失敗時の primary diagnostic handoff は `output/latest_run.txt` です。古い job の削除には `python user_tools/99_cleanup.py` を使います。
+音声は `--voice` で変更できます。診断情報は job ごとの `output/<video_id>/.cache/diagnostic.json` です。成功時は final video、diagnostic、source audio だけを残し、失敗時は `.cache/work/` に調査用の作業状態を残します。古い job の削除には `python user_tools/99_cleanup.py` を使います。
+
+## macOS Desktop launcher
+
+上記の手順で `.venv` を作成して依存関係を入れた後、次を一度実行します。
+
+```bash
+.venv/bin/python tools/install_mac_desktop_launcher.py
+```
+
+以後は `~/Desktop/YouTube Dub.command` をダブルクリックすると、音声選択、YouTube URL 入力、吹替の対話フローを開始できます。この launcher は Python 自体を package せず、この repository の `.venv` を利用します。
 
 ## Timeline / quality invariants
 
