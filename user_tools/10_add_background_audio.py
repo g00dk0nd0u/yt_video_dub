@@ -19,6 +19,10 @@ from time import monotonic
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRIPT_DIR = REPO_ROOT / "scripts"
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from finder import open_job_folder_in_finder
 DEFAULT_BACKGROUND_DB = -6.0
 DEFAULT_MODEL = "htdemucs"
 BACKEND = "demucs-two-stems-vocals"
@@ -363,6 +367,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Install Demucs in a separate compatible environment and use --demucs-python PATH,"
               " or provide --demucs-bin PATH.", file=sys.stderr)
         return 1
+    open_job_folder_in_finder(output.parent)
     print(f"Created background-audio dub: {output}")
     print(f"Standard dubbed video is unchanged: {standard}")
     return 0
