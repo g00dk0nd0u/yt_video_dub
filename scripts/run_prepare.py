@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
@@ -71,15 +72,10 @@ def main(argv: list[str] | None = None) -> int:
     get_transcript = _load_script_module("02_get_transcript.py")
     normalize_transcript = _load_script_module("02_normalize_transcript.py")
     make_chunks = _load_script_module("03_make_translation_chunks.py")
-    job_id = prepare_source.prepare_source(
-        youtube_url=args.youtube_url,
-        local_video=args.local_video,
-        job_id=args.job_id,
-        output_dir=args.output_dir,
-    )
-
-    get_transcript.main(
-        [
+    if args.youtube_url:
+        job_id, paths, payload = prepare_source.initialize_youtube_job(
+            youtube_url=args.youtube_url, job_id=args.job_id, output_dir=args.output_dir)
+        transcript_args = [
             "--job-id",
             job_id,
             "--output-dir",
@@ -87,7 +83,21 @@ def main(argv: list[str] | None = None) -> int:
             "--language",
             args.language,
         ]
-    )
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            source_future = executor.submit(
+                prepare_source.acquire_initialized_youtube_job,
+                youtube_url=args.youtube_url, paths=paths)
+            transcript_future = executor.submit(get_transcript.main, transcript_args)
+            source_path, acquisition = source_future.result()
+            transcript_future.result()
+        prepare_source.finalize_youtube_job(
+            paths=paths, payload=payload, source_path=source_path, acquisition=acquisition)
+        print(f"Prepared job: {job_id}")
+        print(f"Job directory: {paths.job_dir}")
+    else:
+        job_id = prepare_source.prepare_source(
+            youtube_url=None, local_video=args.local_video, job_id=args.job_id,
+            output_dir=args.output_dir)
     normalize_transcript.main(["--job-id", job_id, "--output-dir", args.output_dir])
     make_chunks.main(
         [
