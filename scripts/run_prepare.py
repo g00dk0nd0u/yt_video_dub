@@ -86,10 +86,12 @@ def main(argv: list[str] | None = None) -> int:
         with ThreadPoolExecutor(max_workers=2) as executor:
             source_future = executor.submit(
                 prepare_source.acquire_initialized_youtube_job,
-                youtube_url=args.youtube_url, paths=paths, payload=payload)
+                youtube_url=args.youtube_url, paths=paths)
             transcript_future = executor.submit(get_transcript.main, transcript_args)
-            source_future.result()
+            source_path, acquisition = source_future.result()
             transcript_future.result()
+        prepare_source.finalize_youtube_job(
+            paths=paths, payload=payload, source_path=source_path, acquisition=acquisition)
         print(f"Prepared job: {job_id}")
         print(f"Job directory: {paths.job_dir}")
     else:

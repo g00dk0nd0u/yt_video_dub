@@ -191,9 +191,14 @@ def initialize_youtube_job(*, youtube_url: str, job_id: str | None,
     return resolved_job_id, paths, payload
 
 
-def acquire_initialized_youtube_job(*, youtube_url: str, paths, payload: dict) -> None:
-    """Download the source for a job whose metadata has already been written."""
-    source_path, acquisition = _acquire_youtube_source(youtube_url, paths.source_dir)
+def acquire_initialized_youtube_job(*, youtube_url: str, paths) -> tuple[Path, dict]:
+    """Download the source without modifying job metadata from the worker."""
+    return _acquire_youtube_source(youtube_url, paths.source_dir)
+
+
+def finalize_youtube_job(*, paths, payload: dict, source_path: Path,
+                         acquisition: dict) -> None:
+    """Finalize job metadata after all parallel acquisition work has completed."""
     _write_job_file(paths.job_json_path, {
         **payload, "source_path": paths.rel_to_job(source_path), "acquisition": acquisition,
     })
@@ -206,7 +211,10 @@ def prepare_source(*, youtube_url: str | None, local_video: str | None,
     if youtube_url:
         resolved_job_id, paths, payload = initialize_youtube_job(
             youtube_url=youtube_url, job_id=job_id, output_dir=str(output_dir_path))
-        acquire_initialized_youtube_job(youtube_url=youtube_url, paths=paths, payload=payload)
+        source_path, acquisition = acquire_initialized_youtube_job(
+            youtube_url=youtube_url, paths=paths)
+        finalize_youtube_job(paths=paths, payload=payload, source_path=source_path,
+                             acquisition=acquisition)
         print(f"Prepared job: {resolved_job_id}")
         print(f"Job directory: {paths.job_dir}")
         return resolved_job_id
