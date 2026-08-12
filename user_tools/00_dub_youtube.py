@@ -223,10 +223,12 @@ def _acquisition_summary(job_path: Path) -> str:
 
 
 def _quality_problem(item: dict) -> dict:
-    return {key: item.get(key) for key in (
+    result = {key: item.get(key) for key in (
         "segment_id", "start", "end", "available_duration", "text", "raw_tts_duration",
         "original_converted_duration", "removed_leading_silence", "removed_trailing_silence",
         "final_speech_duration", "final_tts_duration", "rate", "fit_status", "coalesced", "voice")}
+    result["actual_text_sent_to_tts"] = item.get("text")
+    return result
 
 
 def _failed_tts_item(item: dict) -> dict:

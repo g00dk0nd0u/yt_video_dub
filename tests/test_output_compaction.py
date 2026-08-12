@@ -28,11 +28,19 @@ def _paths(tmp_path):
     paths.tts_dir.mkdir(parents=True)
     paths.dubbed_video_path.write_bytes(b"video")
     paths.source_video_path.write_bytes(b"source")
+    paths.transcript_raw_json_path.write_text(json.dumps({"video_id": "job", "segments": [{
+        "segment_id": "seg_0001", "start": 0.0, "end": 1.0,
+        "duration": 1.0, "text": "hello",
+    }]}))
     paths.transcript_normalized_json_path.write_text(json.dumps({"units": [{
-        "unit_id": "u1", "source_text": "hello", "source_start": 0, "source_end": 1,
+        "unit_id": "utt_0001", "source_text": "hello", "source_start": 0.0,
+        "source_end": 1.0, "available_duration": 1.0,
+        "source_segment_ids": ["seg_0001"], "source_unit_ids": ["utt_0001"],
+        "coalesced": False,
     }]}))
     paths.translated_segments_json_path.write_text(json.dumps({"segments": [{
-        "segment_id": "u1", "start": 0, "end": 1, "text": "こんにちは",
+        "segment_id": "utt_0001", "start": 0.0, "end": 1.0,
+        "duration": 1.0, "text": "こんにちは",
     }]}))
     return paths
 
@@ -41,7 +49,17 @@ def test_success_compacts_only_after_validated_audio_and_diagnostic(tmp_path, mo
     module, paths = _runner(), _paths(tmp_path)
     from run_diagnostics import RunReport
     report = RunReport(tmp_path, "job", "https://www.youtube.com/watch?v=job")
-    report.data["tts"] = [{"segment_id": "u1", "fit_status": "ok", "rate": "+0%"}]
+    module._record_tts_diagnostics(report, {"run_metrics": {"fit_ok_count": 1}, "items": [{
+        "segment_id": "utt_0001", "start": 0.0, "end": 1.0, "text": "こんにちは",
+        "voice": "ja-JP-KeitaNeural", "available_duration": 1.0,
+        "raw_tts_duration": 0.9, "final_tts_duration": 0.8, "rate": "+0%",
+        "fit_status": "ok", "original_converted_duration": 0.95,
+        "removed_leading_silence": 0.05, "removed_trailing_silence": 0.1,
+        "final_speech_duration": 0.8, "coalesced": False, "status": "generated",
+    }]})
+    report.data["repairs"] = [{"segment_id": "utt_0001", "repair_round": 1,
+                               "text_before": "長すぎる翻訳", "text_after": "こんにちは",
+                               "target_chars": 5, "final_fit_status": "ok"}]
 
     def run(command, **_kwargs):
         if command[0] == "ffmpeg":
@@ -59,10 +77,25 @@ def test_success_compacts_only_after_validated_audio_and_diagnostic(tmp_path, mo
     assert {p.name for p in paths.job_dir.iterdir()} == {"dubbed_video.mp4", ".cache"}
     assert {p.name for p in paths.cache_dir.iterdir()} == {"diagnostic.json", "source_audio.mka"}
     diagnostic = json.loads(paths.diagnostic_path.read_text())
-    assert diagnostic["translation"] == [{"segment_id": "u1", "start": 0, "end": 1,
+    assert diagnostic["translation"] == [{"segment_id": "utt_0001", "start": 0.0, "end": 1.0,
                                            "source_text": "hello",
                                            "final_translated_text": "こんにちは"}]
-    assert diagnostic["tts"][0]["fit_status"] == "ok"
+    tts = diagnostic["tts"][0]
+    assert {key: tts[key] for key in (
+        "actual_text_sent_to_tts", "voice", "available_duration", "raw_tts_duration",
+        "final_tts_duration", "rate", "fit_status", "original_converted_duration",
+        "removed_leading_silence", "removed_trailing_silence", "coalesced",
+    )} == {
+        "actual_text_sent_to_tts": "こんにちは", "voice": "ja-JP-KeitaNeural",
+        "available_duration": 1.0, "raw_tts_duration": 0.9, "final_tts_duration": 0.8,
+        "rate": "+0%", "fit_status": "ok", "original_converted_duration": 0.95,
+        "removed_leading_silence": 0.05, "removed_trailing_silence": 0.1,
+        "coalesced": False,
+    }
+    assert diagnostic["quality"]["repair_history"] == [{
+        "segment_id": "utt_0001", "repair_round": 1, "text_before": "長すぎる翻訳",
+        "text_after": "こんにちは", "target_chars": 5, "final_fit_status": "ok",
+    }]
 
 
 def test_compaction_failure_keeps_video_and_work_evidence(tmp_path, monkeypatch):

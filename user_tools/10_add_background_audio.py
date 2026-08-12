@@ -220,6 +220,21 @@ def _update_diagnostic(path: Path, run: dict[str, object]) -> None:
     _write_manifest_atomic(path, payload)
 
 
+def _stage_diagnostic(path: Path, run: dict[str, object]) -> Path:
+    """Prepare a validated diagnostic update without publishing it yet."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        payload = {}
+    history = payload.setdefault("background_runs", [])
+    history.append(run)
+    payload["background_runs"] = history[-20:]
+    staged = path.with_name(".diagnostic.json.success.tmp")
+    staged.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    json.loads(staged.read_text(encoding="utf-8"))
+    return staged
+
+
 def add_background_audio(args: argparse.Namespace) -> Path:
     started = monotonic()
     job_dir = Path(args.output_dir) / args.job_id
@@ -231,6 +246,8 @@ def add_background_audio(args: argparse.Namespace) -> Path:
     output = job_dir / "dubbed_video_with_bg.mp4"
     diagnostic_path = cache_dir / "diagnostic.json"
     temporary_output = job_dir / "dubbed_video_with_bg.tmp.mp4"
+    output_backup = job_dir / ".dubbed_video_with_bg.backup.mp4"
+    staged_diagnostic = cache_dir / ".diagnostic.json.success.tmp"
     cache_reused = False
     manifest: dict[str, object] = {
         "timestamp": datetime.now(timezone.utc).isoformat(), "source_identity": None,
@@ -277,11 +294,37 @@ def add_background_audio(args: argparse.Namespace) -> Path:
                          "final_audio_format": final_audio_format, "success": True,
                          "ffmpeg_command": command})
         manifest["elapsed_time_seconds"] = round(monotonic() - started, 3)
-        os.replace(temporary_output, output)
-        _update_diagnostic(diagnostic_path, manifest)
+        staged_diagnostic = _stage_diagnostic(diagnostic_path, manifest)
+        try:
+            output_backup.unlink(missing_ok=True)
+        except OSError:
+            pass
+        if output.exists():
+            os.replace(output, output_backup)
+        try:
+            os.replace(temporary_output, output)
+            os.replace(staged_diagnostic, diagnostic_path)
+        except Exception:
+            try:
+                output.unlink(missing_ok=True)
+                if output_backup.exists():
+                    os.replace(output_backup, output)
+            except OSError:
+                pass
+            raise
+        try:
+            output_backup.unlink(missing_ok=True)
+        except OSError:
+            pass
         return output
     except Exception as exc:
-        temporary_output.unlink(missing_ok=True)
+        try:
+            temporary_output.unlink(missing_ok=True)
+            staged_diagnostic.unlink(missing_ok=True)
+            if output_backup.exists() and not output.exists():
+                os.replace(output_backup, output)
+        except OSError:
+            pass
         manifest.update({"accompaniment_cache_reused": cache_reused, "error": str(exc)[-1200:]})
         manifest["success"] = False
         manifest["elapsed_time_seconds"] = round(monotonic() - started, 3)
