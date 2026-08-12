@@ -21,6 +21,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from finder import open_job_folder_in_finder
+
 MALE_VOICE = "ja-JP-KeitaNeural"
 FEMALE_VOICE = "ja-JP-NanamiNeural"
 SPINNER_STAGES = {"Prepare", "Translation", "TTS", "Repair", "Mux"}
@@ -444,6 +446,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
             report.finalize(success=True, video=paths.dubbed_video_path)
         else:
             _compact_success(paths, report)
+        open_job_folder_in_finder(paths.job_dir)
         return paths.dubbed_video_path
     except (Exception, KeyboardInterrupt) as exc:
         report.stage(current, "FAILED", 0, exc)
