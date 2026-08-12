@@ -153,6 +153,23 @@ def test_default_max_repair_rounds_is_five():
     assert inspect.signature(_module().run).parameters["max_repair_rounds"].default == 5
 
 
+def test_default_tts_workers_is_four_and_rejects_zero():
+    module = _module()
+    assert inspect.signature(module.run).parameters["tts_workers"].default == 4
+    with pytest.raises(ValueError, match="at least 1"):
+        module.run("https://youtu.be/abc123", tts_workers=0, stages={})
+
+
+def test_cli_forwards_tts_workers(monkeypatch, tmp_path):
+    module = _module()
+    used = []
+    monkeypatch.setattr(module, "run", lambda _url, **kwargs:
+                        used.append(kwargs["tts_workers"]) or tmp_path / "video.mp4")
+    monkeypatch.setattr(module.os, "chdir", lambda _path: None)
+    assert module.main(["--url", "OEkxKdhtQng", "--tts-workers", "1"]) == 0
+    assert used == [1]
+
+
 def test_invalid_url_does_not_advertise_stale_diagnostic(tmp_path, capsys):
     module = _module()
     stale = tmp_path / "latest_run.txt"

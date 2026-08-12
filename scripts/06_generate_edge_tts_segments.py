@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import wave
 from array import array
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from path_layout import build_job_paths
@@ -30,6 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ffmpeg-bin", default="ffmpeg")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--workers", type=int, default=4)
     return parser
 
 
@@ -138,9 +140,12 @@ def _write_retry_artifact(path: Path, items: list[dict]) -> None:
 
 def generate_job(*, job_id: str, output_dir: str | Path, voice: str = DEFAULT_VOICE,
                  ffmpeg_bin: str = "ffmpeg", resume: bool = False, force: bool = False,
+                 workers: int = 4,
                  provider: EdgeTTSProvider | None = None,
                  converter=_convert_to_wav, measure=_measure_wav,
                  silence_handler=_trim_edge_silence) -> dict:
+    if workers < 1:
+        raise ValueError("workers must be at least 1")
     paths = build_job_paths(output_dir, job_id)
     payload = json.loads(paths.resolve_translated_segments_json_path().read_text(encoding="utf-8"))
     segments = payload["segments"]
@@ -156,26 +161,22 @@ def generate_job(*, job_id: str, output_dir: str | Path, voice: str = DEFAULT_VO
     old_items = {item.get("segment_id"): item for item in old.get("items", [])}
     provider = provider or EdgeTTSProvider(voice)
     items = []
-    generated = reused = skipped_empty = failed = 0
     with tempfile.TemporaryDirectory(prefix="yt_video_dub_edge_") as temporary:
         temp = Path(temporary)
-        for index, segment in enumerate(segments, start=1):
+        def generate_segment(index_and_segment):
+            index, segment = index_and_segment
             wav = paths.tts_dir / f"segment_{index:06d}.wav"
             old_item = old_items.get(segment["segment_id"], {})
             if resume and not force and _cache_matches(old, old_item, segment, voice, wav):
                 item = dict(old_item)
                 item["status"] = "reused"
-                items.append(item)
-                reused += 1
-                continue
+                return item
             available = float(segment["end"]) - float(segment["start"])
             coalesced = bool(unit_meta.get(segment["segment_id"], {}).get("coalesced"))
             if not segment["text"].strip():
-                items.append({"index": index, **segment, "wav_path": None, "status": "skipped_empty",
-                              "fit_status": "ok", "translation_retry_required": False,
-                              "coalesced": coalesced})
-                skipped_empty += 1
-                continue
+                return {"index": index, **segment, "wav_path": None, "status": "skipped_empty",
+                        "fit_status": "ok", "translation_retry_required": False,
+                        "coalesced": coalesced}
             native = temp / f"{index:06d}.mp3"
             try:
                 provider.synthesize(segment["text"], native, rate_percent=0)
@@ -202,17 +203,15 @@ def generate_job(*, job_id: str, output_dir: str | Path, voice: str = DEFAULT_VO
                     subprocess.CalledProcessError) as exc:
                 wav.unlink(missing_ok=True)
                 message = str(exc) if isinstance(exc, EdgeTTSError) else "Edge audio processing failed."
-                items.append({
+                return {
                     "index": index, **segment, "wav_path": None, "status": "failed",
                     "tts_provider": "edge", "voice": voice, "fit_status": None,
                     "translation_retry_required": False, "error_type": type(exc).__name__,
                     "error_message": message, "coalesced": coalesced,
-                })
-                failed += 1
-                continue
+                }
             fit_status = ("ok" if final_duration <= available and retry_count == 0 else
                           "fitted" if final_duration <= available else "ng")
-            items.append({
+            return {
                 "index": index, **segment, "wav_path": paths.rel_to_job(wav), "status": "generated",
                 "tts_provider": "edge", "voice": voice, "rate": f"+{rate_percent}%",
                 "coalesced": coalesced,
@@ -225,8 +224,13 @@ def generate_job(*, job_id: str, output_dir: str | Path, voice: str = DEFAULT_VO
                 "duration_ratio": round(final_duration / available, 6) if available > 0 else None,
                 "speed_scale": round(1.0 + rate_percent / 100.0, 6),
                 "fit_status": fit_status, "translation_retry_required": fit_status == "ng",
-            })
-            generated += 1
+            }
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            items = list(executor.map(generate_segment, enumerate(segments, start=1)))
+    generated = sum(item.get("status") == "generated" for item in items)
+    reused = sum(item.get("status") == "reused" for item in items)
+    skipped_empty = sum(item.get("status") == "skipped_empty" for item in items)
+    failed = sum(item.get("status") == "failed" for item in items)
     fitted_items = [item for item in items if item.get("status") in {"generated", "reused"}]
     fit_counts = {
         "fit_ok_count": sum(item.get("fit_status") == "ok" for item in fitted_items),
@@ -252,7 +256,8 @@ def generate_job(*, job_id: str, output_dir: str | Path, voice: str = DEFAULT_VO
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     manifest = generate_job(job_id=args.job_id, output_dir=args.output_dir, voice=args.voice,
-                            ffmpeg_bin=args.ffmpeg_bin, resume=args.resume, force=args.force)
+                            ffmpeg_bin=args.ffmpeg_bin, resume=args.resume, force=args.force,
+                            workers=args.workers)
     print(f"Generated Edge TTS segments for job: {args.job_id}")
     return 1 if manifest["run_metrics"]["failed_units"] else 0
 

@@ -176,21 +176,37 @@ def _write_job_file(job_path: Path, payload: dict) -> None:
     job_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def initialize_youtube_job(*, youtube_url: str, job_id: str | None,
+                           output_dir: str) -> tuple[str, object, dict]:
+    """Create the job metadata before downloading its independent source asset."""
+    info = _extract_youtube_metadata(youtube_url)
+    resolved_job_id = job_id or info["id"]
+    paths = build_job_paths(output_dir, resolved_job_id)
+    paths.ensure_prepare_dirs()
+    payload = {
+        "job_id": resolved_job_id, "created_at": _utc_now_iso(), "source_type": "youtube",
+        "youtube_url": youtube_url, "video_id": info["id"], "title": info.get("title"),
+    }
+    _write_job_file(paths.job_json_path, payload)
+    return resolved_job_id, paths, payload
+
+
+def acquire_initialized_youtube_job(*, youtube_url: str, paths, payload: dict) -> None:
+    """Download the source for a job whose metadata has already been written."""
+    source_path, acquisition = _acquire_youtube_source(youtube_url, paths.source_dir)
+    _write_job_file(paths.job_json_path, {
+        **payload, "source_path": paths.rel_to_job(source_path), "acquisition": acquisition,
+    })
+
+
 def prepare_source(*, youtube_url: str | None, local_video: str | None,
                    job_id: str | None, output_dir: str) -> str:
     output_dir_path = Path(output_dir)
     output_dir_path.mkdir(parents=True, exist_ok=True)
     if youtube_url:
-        info = _extract_youtube_metadata(youtube_url)
-        resolved_job_id = job_id or info["id"]
-        paths = build_job_paths(output_dir_path, resolved_job_id)
-        paths.ensure_prepare_dirs()
-        source_path, acquisition = _acquire_youtube_source(youtube_url, paths.source_dir)
-        _write_job_file(paths.job_json_path, {
-            "job_id": resolved_job_id, "created_at": _utc_now_iso(), "source_type": "youtube",
-            "youtube_url": youtube_url, "video_id": info["id"], "title": info.get("title"),
-            "source_path": paths.rel_to_job(source_path), "acquisition": acquisition,
-        })
+        resolved_job_id, paths, payload = initialize_youtube_job(
+            youtube_url=youtube_url, job_id=job_id, output_dir=str(output_dir_path))
+        acquire_initialized_youtube_job(youtube_url=youtube_url, paths=paths, payload=payload)
         print(f"Prepared job: {resolved_job_id}")
         print(f"Job directory: {paths.job_dir}")
         return resolved_job_id

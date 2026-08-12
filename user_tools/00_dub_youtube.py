@@ -248,10 +248,13 @@ def _mux_diagnostics(manifest: dict) -> dict:
 
 
 def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
-        max_repair_rounds: int = 5, stages: dict | None = None) -> Path:
+        max_repair_rounds: int = 5, tts_workers: int = 4,
+        stages: dict | None = None) -> Path:
     from path_layout import build_job_paths
     from run_diagnostics import RunReport
 
+    if tts_workers < 1:
+        raise ValueError("tts_workers must be at least 1")
     url, job_id = _canonical_youtube_input(url)
     if not job_id:
         raise RuntimeError("Prepare failed: YouTube URLから動画IDを取得できませんでした。")
@@ -271,7 +274,8 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
                 input_dir=paths.translation_input_dir, output_dir=paths.translation_output_dir,
                 manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md"),
             "Build": lambda: build.main(common), "Preflight": lambda: preflight.main(common),
-            "TTS": lambda: edge.generate_job(job_id=job_id, output_dir=output_dir, voice=voice, resume=True),
+            "TTS": lambda: edge.generate_job(job_id=job_id, output_dir=output_dir, voice=voice,
+                                               resume=True, workers=tts_workers),
             "Repair": lambda: repair_translations(retry_path=paths.duration_retry_required_path,
                 input_dir=paths.translation_input_dir, output_dir=paths.translation_output_dir,
                 manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md"),
@@ -366,14 +370,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url"); parser.add_argument("--output-dir", default="output")
     parser.add_argument("--voice"); parser.add_argument("--max-repair-rounds", type=int, default=5)
+    parser.add_argument("--tts-workers", type=int, default=4)
     args = parser.parse_args(argv); os.chdir(REPO_ROOT)
+    if args.tts_workers < 1:
+        parser.error("--tts-workers must be at least 1")
     voice = args.voice or (_select_voice() if args.url is None else MALE_VOICE)
     url = args.url or input("YouTube URLを貼ってください:\n\n> ").strip()
     if not url: print("入力が空だったため終了しました。"); return 1
     if not _canonical_youtube_input(url)[1]:
         print("Prepare failed: YouTube URLから動画IDを取得できませんでした。")
         return 1
-    try: video = run(url, output_dir=args.output_dir, voice=voice, max_repair_rounds=args.max_repair_rounds)
+    try: video = run(url, output_dir=args.output_dir, voice=voice,
+                     max_repair_rounds=args.max_repair_rounds, tts_workers=args.tts_workers)
     except RuntimeError as exc: print(exc); print(f"Diagnostic: {Path(args.output_dir) / 'latest_run.txt'}"); return 1
     print(f"\nCompleted.\nVideo: {video.as_posix()}\nDiagnostic: {Path(args.output_dir) / 'latest_run.txt'}")
     return 0

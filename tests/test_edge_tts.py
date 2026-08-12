@@ -63,7 +63,7 @@ def test_edge_duration_fitting_and_provider_cache(tmp_path, load_script):
                 "removed_trailing_silence": 0, "final_speech_duration": duration}
     manifest = module.generate_job(
         job_id="job", output_dir=tmp_path, provider=Provider(), converter=convert,
-        measure=lambda path: measured[path], silence_handler=clean)
+        measure=lambda path: measured[path], silence_handler=clean, workers=1)
     assert [item["fit_status"] for item in manifest["items"]] == ["ok", "fitted", "ng"]
     assert manifest["items"][2]["translation_retry_required"] is True
     assert rates == [0, 0, 11, 0]
@@ -75,6 +75,36 @@ def test_edge_duration_fitting_and_provider_cache(tmp_path, load_script):
     assert not module._cache_matches(
         {"tts_provider": "aivis", "voice": "1"}, manifest["items"][0], segments[0],
         "ja-JP-KeitaNeural", tmp_path / "missing.wav")
+
+
+def test_edge_workers_run_independent_segments_in_parallel(tmp_path, load_script):
+    module = load_script("06_generate_edge_tts_segments.py")
+    directory = tmp_path / "job/05_segments"
+    directory.mkdir(parents=True)
+    directory.joinpath("translated_segments.json").write_text(json.dumps({"segments": [
+        {"segment_id": "one", "start": 0, "end": 1, "text": "one"},
+        {"segment_id": "two", "start": 1, "end": 2, "text": "two"},
+    ]}))
+    active = maximum = 0
+    import threading
+    guard = threading.Lock()
+    barrier = threading.Barrier(2)
+
+    class Provider:
+        def synthesize(self, text, output, rate_percent=0):
+            nonlocal active, maximum
+            with guard:
+                active += 1
+                maximum = max(maximum, active)
+            barrier.wait(timeout=2)
+            output.write_bytes(b"mp3")
+            with guard:
+                active -= 1
+
+    module.generate_job(job_id="job", output_dir=tmp_path, provider=Provider(), workers=2,
+                        converter=lambda _source, target, _ffmpeg: target.write_bytes(b"wav"),
+                        measure=lambda _: .5, silence_handler=_silence(.5))
+    assert maximum == 2
 
 
 def _write_segments(tmp_path):
