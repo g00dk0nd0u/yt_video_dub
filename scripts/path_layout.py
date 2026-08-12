@@ -59,6 +59,14 @@ class JobPaths:
         return self.source_dir / "source.mp4"
 
     @property
+    def compatibility_video_path(self) -> Path:
+        return self.source_dir / "compat_h264.mp4"
+
+    @property
+    def compatibility_manifest_path(self) -> Path:
+        return self.source_dir / "compat_h264.json"
+
+    @property
     def job_json_path(self) -> Path:
         return self.source_dir / "job.json"
 
