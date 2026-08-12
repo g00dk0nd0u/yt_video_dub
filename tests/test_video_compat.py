@@ -97,6 +97,37 @@ def test_matching_identity_reuses_cache_without_ffmpeg(tmp_path, load_script, mo
     assert result["compatibility_video_path"] == cache
 
 
+def test_matching_cache_reuses_when_optional_color_metadata_is_missing(
+    tmp_path, load_script, monkeypatch
+):
+    module = load_script("video_compat.py")
+    source = _job(tmp_path)
+    cache = tmp_path / "job/01_source/compat_h264.mp4"
+    cache.write_bytes(b"cached")
+    optional_missing = {
+        **SOURCE_PROBE,
+        "color_space": None,
+        "color_transfer": None,
+        "color_primaries": None,
+    }
+    output_probe = {**optional_missing, "codec_name": "h264"}
+    monkeypatch.setattr(module, "_ffmpeg_version", lambda _binary: "ffmpeg test")
+    monkeypatch.setattr(
+        module,
+        "_probe",
+        lambda _binary, path: optional_missing if Path(path) == source else output_probe,
+    )
+    identity = module._identity(source, optional_missing, "ffmpeg test")
+    cache.with_suffix(".json").write_text(json.dumps({"identity": identity}))
+    monkeypatch.setattr(module.subprocess, "Popen", lambda *_a, **_k: (_ for _ in ()).throw(
+        AssertionError("missing optional metadata must not restart ffmpeg")))
+
+    result = module.start_job("job", str(tmp_path)).finish()
+
+    assert result["compatibility_cache_reused"] is True
+    assert result["compatibility_video_path"] == cache
+
+
 def test_source_identity_change_starts_new_encode(tmp_path, load_script, monkeypatch):
     module = load_script("video_compat.py")
     source = _job(tmp_path)

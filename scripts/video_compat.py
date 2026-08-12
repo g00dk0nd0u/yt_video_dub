@@ -217,7 +217,7 @@ def start_job(job_id: str, output_dir: str = "output", *, ffmpeg_bin="ffmpeg",
                 output_probe = _probe(ffprobe_bin, paths.compatibility_video_path)
                 cache_metadata_complete = all(
                     source_probe.get(field) not in (None, "", "unknown")
-                    for field in _IDENTITY_STREAM_FIELDS
+                    for field in _REQUIRED_IDENTITY_FIELDS
                 )
                 if manifest.get("identity") == identity and cache_metadata_complete:
                     _validate(source_probe, output_probe, paths.compatibility_video_path)
