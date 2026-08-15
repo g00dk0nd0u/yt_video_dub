@@ -48,13 +48,13 @@ def test_primary_success_never_calls_fallback(tmp_path, monkeypatch):
     assert diagnostics["successful_strategy"] == module.PRIMARY_STRATEGY.name
 
 
-def test_403_gets_exactly_one_fallback_and_succeeds(tmp_path, monkeypatch):
+def test_primary_403_gets_one_bounded_fallback_without_forced_player_client(tmp_path, monkeypatch):
     module = _module()
     calls = []
 
     def download(url, source_dir, strategy):
         calls.append(strategy.name)
-        if not strategy.fallback:
+        if strategy is module.PRIMARY_STRATEGY:
             raise module.SourceAcquisitionError("download", "HTTP Error 403: Forbidden",
                                                 strategy=strategy.name, http_403=True)
         target = source_dir / "source.mp4"
@@ -65,10 +65,10 @@ def test_403_gets_exactly_one_fallback_and_succeeds(tmp_path, monkeypatch):
     result, diagnostics = module._acquire_youtube_source("url", tmp_path)
     assert result.stat().st_size
     assert calls == [strategy.name for strategy in module.ACQUISITION_STRATEGIES]
-    assert diagnostics["attempted_strategies"] == calls
+    assert diagnostics["successful_strategy"] == module.YOUTUBE_FALLBACK_STRATEGY.name
 
 
-def test_two_403_failures_are_bounded_and_diagnostic_is_sanitized(tmp_path, monkeypatch):
+def test_403_diagnostic_is_sanitized(tmp_path, monkeypatch):
     module = _module()
     calls = []
 
@@ -85,30 +85,52 @@ def test_two_403_failures_are_bounded_and_diagnostic_is_sanitized(tmp_path, monk
         module._acquire_youtube_source("url", tmp_path)
     message = str(caught.value)
     assert calls == [strategy.name for strategy in module.ACQUISITION_STRATEGIES]
-    assert "attempted_strategies=yt-dlp-default,youtube-android-vr" in message
+    assert "attempted_strategies=yt-dlp-standard,yt-dlp-720p-fallback" in message
     assert "http_403=true" in message
     assert "googlevideo" not in message and "secret" not in message and "cookie=abc" not in message
     assert "PO-token-capable" in message
 
 
-def test_primary_403_is_preserved_when_fallback_has_non_403_failure(tmp_path, monkeypatch):
+def test_standard_download_command_does_not_force_extractor_or_transport_settings(tmp_path, monkeypatch):
     module = _module()
+    commands = []
 
-    def fail(url, source_dir, strategy):
-        if not strategy.fallback:
-            raise module.SourceAcquisitionError("download", "HTTP Error 403: Forbidden",
-                                                strategy=strategy.name, http_403=True)
-        raise module.SourceAcquisitionError("download", "connection reset",
-                                            strategy=strategy.name, http_403=False)
+    def run(command, **kwargs):
+        commands.append((command, kwargs))
+        output = command[command.index("--output") + 1].replace("%(ext)s", "mp4")
+        Path(output).write_bytes(b"video")
 
-    monkeypatch.setattr(module, "_download_with_strategy", fail)
-    with pytest.raises(module.SourceAcquisitionError) as caught:
-        module._acquire_youtube_source("url", tmp_path)
-    message = str(caught.value)
-    assert "http_403=true" in message
-    assert "yt-dlp-default:download:http_403=true" in message
-    assert "youtube-android-vr:download:http_403=false" in message
-    assert "newer/current yt-dlp" in message and "PO-token-capable" in message
+    monkeypatch.setattr(module.subprocess, "run", run)
+    result = module._download_with_strategy("https://youtu.be/id", tmp_path,
+                                            module.PRIMARY_STRATEGY)
+    command, kwargs = commands[0]
+    assert result == tmp_path / "source.mp4"
+    assert command[:3] == [sys.executable, "-m", "yt_dlp"]
+    assert kwargs == {"check": True, "capture_output": True, "text": True}
+    forbidden = {"--format", "-f", "--extractor-args", "--user-agent", "--add-headers",
+                 "--cookies", "--cookies-from-browser", "--proxy", "--download-sections",
+                 "--retries", "--fragment-retries", "--cache-dir"}
+    assert forbidden.isdisjoint(command)
+    assert "player_client" not in " ".join(command) and "android_vr" not in " ".join(command)
+
+
+def test_fallback_changes_only_format_selection(tmp_path, monkeypatch):
+    module = _module()
+    commands = []
+
+    def run(command, **_kwargs):
+        commands.append(command)
+        output = command[command.index("--output") + 1].replace("%(ext)s", "mp4")
+        Path(output).write_bytes(b"video")
+
+    monkeypatch.setattr(module.subprocess, "run", run)
+    module._download_with_strategy("https://youtu.be/id", tmp_path,
+                                   module.YOUTUBE_FALLBACK_STRATEGY)
+    command = commands[0]
+    assert command[command.index("--format") + 1] == (
+        "bestvideo*[height<=720]+bestaudio/best[height<=720]")
+    assert "--extractor-args" not in command
+    assert "player_client" not in " ".join(command) and "android_vr" not in " ".join(command)
 
 
 @pytest.mark.parametrize("stage", ["metadata", "normalization"])
@@ -137,15 +159,12 @@ def test_nonretryable_errors_do_not_create_retry_storm(tmp_path, monkeypatch, st
 def test_failed_strategy_cleans_partial_and_never_creates_canonical(tmp_path, monkeypatch):
     module = _module()
 
-    class BrokenYDL:
-        def __init__(self, options): self.options = options
-        def __enter__(self): return self
-        def __exit__(self, *args): pass
-        def extract_info(self, *args, **kwargs):
-            Path(self.options["outtmpl"].replace("%(ext)s", "mp4.part")).write_bytes(b"partial")
-            raise module.DownloadError("HTTP Error 403: Forbidden")
+    def fail(command, **_kwargs):
+        output = command[command.index("--output") + 1].replace("%(ext)s", "mp4.part")
+        Path(output).write_bytes(b"partial")
+        raise module.subprocess.CalledProcessError(1, command, stderr="HTTP Error 403: Forbidden")
 
-    monkeypatch.setattr(module, "YoutubeDL", BrokenYDL)
+    monkeypatch.setattr(module.subprocess, "run", fail)
     with pytest.raises(module.SourceAcquisitionError, match="http_403=true"):
         module._download_with_strategy("url", tmp_path, module.PRIMARY_STRATEGY)
     assert not (tmp_path / "source.mp4").exists()

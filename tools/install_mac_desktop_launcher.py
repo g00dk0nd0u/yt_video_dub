@@ -27,8 +27,8 @@ failure() {{
 [[ -f "$entrypoint" ]] || failure "YouTube Dub: missing dubbing entrypoint" 1
 cd "$repo" || failure "YouTube Dub: cannot open repository" 1
 "$python" "$entrypoint"
-status=$?
-(( status == 0 )) || failure "YouTube Dub failed (exit $status)." "$status"
+exit_status=$?
+(( exit_status == 0 )) || failure "YouTube Dub failed (exit $exit_status)." "$exit_status"
 exit 0
 """
 

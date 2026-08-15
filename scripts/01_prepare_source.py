@@ -6,13 +6,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from yt_dlp import YoutubeDL
-from yt_dlp.utils import DownloadError
-
 from path_layout import build_job_paths
 
 
@@ -20,16 +20,15 @@ from path_layout import build_job_paths
 class AcquisitionStrategy:
     name: str
     fallback: bool
-    youtube_dl_options: dict
+    yt_dlp_args: tuple[str, ...]
 
 
 PRIMARY_STRATEGY = AcquisitionStrategy(
-    "yt-dlp-default", False, {"format": "bestvideo*+bestaudio/best"}
+    "yt-dlp-standard", False, ()
 )
-# A deliberately single, logged-out fallback. Keep this easy to update as yt-dlp evolves.
 YOUTUBE_FALLBACK_STRATEGY = AcquisitionStrategy(
-    "youtube-android-vr", True,
-    {"format": "bestvideo*+bestaudio/best", "extractor_args": {"youtube": {"player_client": ["android_vr"]}}},
+    "yt-dlp-720p-fallback", True,
+    ("--format", "bestvideo*[height<=720]+bestaudio/best[height<=720]"),
 )
 ACQUISITION_STRATEGIES = (PRIMARY_STRATEGY, YOUTUBE_FALLBACK_STRATEGY)
 
@@ -105,22 +104,24 @@ def _download_with_strategy(youtube_url: str, source_dir: Path,
                             strategy: AcquisitionStrategy) -> Path:
     prefix = f".acquire-{strategy.name}"
     _cleanup_strategy_files(source_dir, prefix)
-    options = {
-        "quiet": True, "no_warnings": True,
-        "merge_output_format": "mp4",
-        "outtmpl": str(source_dir / f"{prefix}.%(ext)s"),
-        "postprocessors": [{"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"}],
-        **strategy.youtube_dl_options,
-    }
+    command = [
+        sys.executable, "-m", "yt_dlp",
+        "--quiet", "--no-warnings",
+        "--merge-output-format", "mp4",
+        "--remux-video", "mp4",
+        "--output", str(source_dir / f"{prefix}.%(ext)s"),
+        *strategy.yt_dlp_args,
+        youtube_url,
+    ]
     try:
-        with YoutubeDL(options) as ydl:
-            ydl.extract_info(youtube_url, download=True)
-    except DownloadError as exc:
+        subprocess.run(command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
         _cleanup_strategy_files(source_dir, prefix)
-        forbidden = bool(re.search(r"(?:HTTP Error\s*)?403|forbidden", str(exc), re.I))
-        raise SourceAcquisitionError("download", exc, strategy=strategy.name,
+        message = exc.stderr or exc.stdout or f"yt-dlp exited with status {exc.returncode}"
+        forbidden = bool(re.search(r"(?:HTTP Error\s*)?403|forbidden", message, re.I))
+        raise SourceAcquisitionError("download", message, strategy=strategy.name,
                                      http_403=forbidden) from exc
-    except (OSError, RuntimeError) as exc:
+    except OSError as exc:
         _cleanup_strategy_files(source_dir, prefix)
         raise SourceAcquisitionError("download", exc, strategy=strategy.name) from exc
 
@@ -163,7 +164,7 @@ def _acquire_youtube_source(youtube_url: str, source_dir: Path) -> tuple[Path, d
             exc.attempted = attempted.copy()
             any_http_403 = any_http_403 or exc.http_403
             failures.append(f"{strategy.name}:{exc.stage}:http_403={str(exc.http_403).lower()}")
-            # Only a 403 from the primary download permits the one fallback.
+            # A fresh extraction of a different representation is the only fallback.
             if strategy is PRIMARY_STRATEGY and exc.stage == "download" and exc.http_403:
                 continue
             raise SourceAcquisitionError(exc.stage, exc.concise_error, strategy=exc.strategy,
