@@ -343,11 +343,16 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
         audio, mux = _load("07_build_dub_audio.py"), _load("08_mux_video.py")
         video_compat = _load("video_compat.py")
         common = [f"--job-id={job_id}", "--output-dir", output_dir]
+        def translation_progress(completed: int, total: int) -> None:
+            percent = completed * 100 // total
+            print(f"Translation..... {percent:3d}% ({completed}/{total})")
+
         stages = {
             "Prepare": lambda: prepare.main(["--youtube-url", url, "--output-dir", output_dir, "--quiet"]),
             "Translation": lambda: translation_provider("codex_cli")(
                 input_dir=paths.translation_input_dir, output_dir=paths.translation_output_dir,
-                manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md"),
+                manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md",
+                progress_callback=translation_progress),
             "Build": lambda: build.main(common), "Preflight": lambda: preflight.main(common),
             "TTS": lambda: edge.generate_job(job_id=job_id, output_dir=output_dir, voice=voice,
                                                resume=True, workers=tts_workers),

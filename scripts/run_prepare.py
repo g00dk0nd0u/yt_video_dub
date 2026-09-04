@@ -41,8 +41,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--chunk-size",
         type=int,
-        default=100,
-        help="Maximum segment count per translation chunk.",
+        default=10,
+        help="Maximum segment count per translation chunk. Default: 10",
     )
     return parser
 

@@ -100,6 +100,37 @@ def test_codex_cannot_rewrite_validation_source(tmp_path, monkeypatch):
     assert not (output_dir / "chunk_0001.txt").exists()
 
 
+def test_codex_reports_progress_per_chunk(tmp_path, monkeypatch):
+    from providers.translation import codex_cli
+
+    input_dir, output_dir, manifest, rules, source = _translation_job(tmp_path)
+    second = dict(source, segment_id="u2", text="world")
+    (input_dir / "chunk_0002.txt").write_text(json.dumps(second) + "\n")
+    manifest.write_text(json.dumps({"total_segments": 2, "chunks": [
+        {"file": "chunk_0001.txt"}, {"file": "chunk_0002.txt"}
+    ]}))
+    monkeypatch.setattr(codex_cli.shutil, "which", lambda _: "/usr/bin/codex")
+    observed_inputs = []
+
+    def runner(command, **kwargs):
+        workspace = Path(kwargs["cwd"])
+        input_files = list((workspace / "input").iterdir())
+        observed_inputs.append([path.name for path in input_files])
+        item = source if input_files[0].name == "chunk_0001.txt" else second
+        (workspace / "output" / input_files[0].name).write_text(
+            json.dumps(dict(item, text="こんにちは")) + "\n")
+        return type("Result", (), {"returncode": 0})()
+
+    progress = []
+    codex_cli.translate_job(
+        input_dir=input_dir, output_dir=output_dir, manifest_path=manifest,
+        rules_path=rules, runner=runner,
+        progress_callback=lambda completed, total: progress.append((completed, total)),
+    )
+    assert progress == [(1, 2), (2, 2)]
+    assert observed_inputs == [["chunk_0001.txt"], ["chunk_0002.txt"]]
+
+
 def test_aivis_cache_rejects_edge_manifest(load_script):
     module = load_script("06_generate_tts_segments.py")
     segment = {"segment_id": "u1", "start": 0.0, "end": 1.0, "text": "訳"}

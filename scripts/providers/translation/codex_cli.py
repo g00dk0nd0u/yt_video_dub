@@ -29,6 +29,7 @@ def _task_text() -> str:
 def translate_job(
     *, input_dir: Path, output_dir: Path, manifest_path: Path, rules_path: Path,
     codex_bin: str = "codex", runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> dict:
     executable = shutil.which(codex_bin)
     if executable is None:
@@ -49,32 +50,36 @@ def translate_job(
         isolated_input.mkdir()
         isolated_output.mkdir()
         shutil.copy2(rules_path, workspace / "translation_mode.md")
-        for name in chunk_names:
-            shutil.copy2(input_dir / name, isolated_input / name)
-        result = runner(
-            [executable, "exec", "--ephemeral", "--sandbox", "workspace-write",
-             "--skip-git-repo-check", "-C", str(workspace), _task_text()],
-            cwd=workspace, capture_output=True, text=True,
-        )
-        if result.returncode != 0:
-            raise CodexTranslationError(
-                "Codex CLI exited unsuccessfully. Run Codex CLI once and sign in "
-                "with your ChatGPT account."
-            )
-
         validated: dict[str, str] = {}
-        try:
-            for name in chunk_names:
+        for index, name in enumerate(chunk_names, start=1):
+            for path in isolated_input.iterdir():
+                path.unlink()
+            for path in isolated_output.iterdir():
+                path.unlink()
+            shutil.copy2(input_dir / name, isolated_input / name)
+            result = runner(
+                [executable, "exec", "--ephemeral", "--sandbox", "workspace-write",
+                 "--skip-git-repo-check", "-C", str(workspace), _task_text()],
+                cwd=workspace, capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                raise CodexTranslationError(
+                    "Codex CLI exited unsuccessfully. Run Codex CLI once and sign in "
+                    "with your ChatGPT account."
+                )
+            try:
                 source_path = input_dir / name
                 translated_path = isolated_output / name
                 translated = load_jsonl(translated_path)
                 validate_chunk_pair(original_sources[name], translated, source_path, translated_path,
                                     reject_blank_translation=True)
                 validated[name] = translated_path.read_text(encoding="utf-8")
-        except (FileNotFoundError, RuntimeError) as exc:
-            raise CodexTranslationError(
-                "Codex output did not pass validation. No translation files were updated."
-            ) from exc
+            except (FileNotFoundError, RuntimeError) as exc:
+                raise CodexTranslationError(
+                    "Codex output did not pass validation. No translation files were updated."
+                ) from exc
+            if progress_callback is not None:
+                progress_callback(index, len(chunk_names))
 
         output_dir.mkdir(parents=True, exist_ok=True)
         staged = output_dir / ".codex_translation_staging"
