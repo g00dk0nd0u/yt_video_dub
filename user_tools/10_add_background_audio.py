@@ -23,6 +23,7 @@ SCRIPT_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from finder import open_job_folder_in_finder
+from path_layout import build_job_paths, validate_job_id
 DEFAULT_BACKGROUND_DB = -6.0
 DEFAULT_MODEL = "htdemucs"
 BACKEND = "demucs-two-stems-vocals"
@@ -173,13 +174,31 @@ def _identity(source: Path, model: str) -> dict[str, object]:
 def _valid_cache(cache_dir: Path, identity: dict[str, object]) -> bool:
     diagnostic, background = cache_dir / "diagnostic.json", cache_dir / "accompaniment.flac"
     try:
-        saved = json.loads(diagnostic.read_text(encoding="utf-8"))
+        saved = _read_diagnostic(diagnostic)
         current = saved.get("background_cache", {})
+        if not isinstance(current, dict):
+            return False
         return (background.is_file() and background.stat().st_size > 0
                 and current.get("source_identity") == identity
                 and current.get("path") == ".cache/accompaniment.flac")
-    except (OSError, ValueError, TypeError):
+    except (OSError, TypeError):
         return False
+
+
+def _read_diagnostic(path: Path) -> dict[str, object]:
+    """Read a diagnostic without accepting or overwriting an invalid structure."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BackgroundAudioError(f"Invalid diagnostic JSON: {path}") from exc
+    if not isinstance(payload, dict):
+        raise BackgroundAudioError("Invalid diagnostic structure: expected an object")
+    history = payload.get("background_runs")
+    if history is not None and not isinstance(history, list):
+        raise BackgroundAudioError("Invalid diagnostic structure: background_runs must be a list")
+    return payload
 
 
 def _write_manifest_atomic(path: Path, payload: dict[str, object]) -> None:
@@ -215,10 +234,7 @@ def _separate(args: argparse.Namespace, source: Path, cache_dir: Path) -> None:
 
 
 def _update_diagnostic(path: Path, run: dict[str, object], *, invalidate_cache: bool = False) -> None:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        payload = {}
+    payload = _read_diagnostic(path)
     history = payload.setdefault("background_runs", [])
     history.append(run)
     payload["background_runs"] = history[-20:]
@@ -229,10 +245,7 @@ def _update_diagnostic(path: Path, run: dict[str, object], *, invalidate_cache: 
 
 def _stage_diagnostic(path: Path, run: dict[str, object]) -> Path:
     """Prepare a validated diagnostic update without publishing it yet."""
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        payload = {}
+    payload = _read_diagnostic(path)
     history = payload.setdefault("background_runs", [])
     history.append(run)
     payload["background_runs"] = history[-20:]
@@ -248,7 +261,7 @@ def _stage_diagnostic(path: Path, run: dict[str, object]) -> Path:
 
 def add_background_audio(args: argparse.Namespace) -> Path:
     started = monotonic()
-    job_dir = Path(args.output_dir) / args.job_id
+    job_dir = Path(args.output_dir) / validate_job_id(args.job_id)
     cache_dir = job_dir / ".cache"
     new_source = cache_dir / "source_audio.mka"
     source = new_source if new_source.is_file() else job_dir / "01_source" / "source.mp4"
@@ -348,7 +361,7 @@ def add_background_audio(args: argparse.Namespace) -> Path:
         manifest["elapsed_time_seconds"] = round(monotonic() - started, 3)
         if cache_dir.exists():
             try: _update_diagnostic(diagnostic_path, manifest, invalidate_cache=cache_generated)
-            except OSError: pass
+            except (OSError, BackgroundAudioError): pass
         raise
 
 
@@ -358,12 +371,14 @@ def main(argv: list[str] | None = None) -> int:
         args.job_id = select_job_id(Path(args.output_dir))
         if args.job_id is None:
             return 0
-    standard = Path(args.output_dir) / args.job_id / "dubbed_video.mp4"
     try:
+        args.job_id = validate_job_id(args.job_id)
+        standard = build_job_paths(args.output_dir, args.job_id).dubbed_video_path
         output = add_background_audio(args)
-    except (BackgroundAudioError, OSError) as exc:
+    except (BackgroundAudioError, OSError, ValueError) as exc:
         print(f"Background audio post-process failed: {exc}", file=sys.stderr)
-        print(f"Standard dubbed video is unchanged:\n{standard}", file=sys.stderr)
+        if "standard" in locals():
+            print(f"Standard dubbed video is unchanged:\n{standard}", file=sys.stderr)
         print("Install Demucs in a separate compatible environment and use --demucs-python PATH,"
               " or provide --demucs-bin PATH.", file=sys.stderr)
         return 1
