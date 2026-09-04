@@ -342,7 +342,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
         preflight, edge = _load("05_preflight_local_run.py"), _load("06_generate_edge_tts_segments.py")
         audio, mux = _load("07_build_dub_audio.py"), _load("08_mux_video.py")
         video_compat = _load("video_compat.py")
-        common = ["--job-id", job_id, "--output-dir", output_dir]
+        common = [f"--job-id={job_id}", "--output-dir", output_dir]
         stages = {
             "Prepare": lambda: prepare.main(["--youtube-url", url, "--output-dir", output_dir, "--quiet"]),
             "Translation": lambda: translation_provider("codex_cli")(

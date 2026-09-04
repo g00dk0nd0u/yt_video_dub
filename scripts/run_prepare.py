@@ -76,8 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         job_id, paths, payload = prepare_source.initialize_youtube_job(
             youtube_url=args.youtube_url, job_id=args.job_id, output_dir=args.output_dir)
         transcript_args = [
-            "--job-id",
-            job_id,
+            f"--job-id={job_id}",
             "--output-dir",
             args.output_dir,
             "--language",
@@ -98,11 +97,10 @@ def main(argv: list[str] | None = None) -> int:
         job_id = prepare_source.prepare_source(
             youtube_url=None, local_video=args.local_video, job_id=args.job_id,
             output_dir=args.output_dir)
-    normalize_transcript.main(["--job-id", job_id, "--output-dir", args.output_dir])
+    normalize_transcript.main([f"--job-id={job_id}", "--output-dir", args.output_dir])
     make_chunks.main(
         [
-            "--job-id",
-            job_id,
+            f"--job-id={job_id}",
             "--output-dir",
             args.output_dir,
             "--chunk-size",

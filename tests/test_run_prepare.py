@@ -28,14 +28,20 @@ def test_phase1_dynamic_loader_imports_current_pipeline_modules():
 def test_youtube_source_and_transcript_are_prepared_in_parallel(monkeypatch, tmp_path):
     barrier = threading.Barrier(2)
     calls = []
+    transcript_args = []
     paths = SimpleNamespace(job_dir=tmp_path / "job")
     prepare = SimpleNamespace(
-        initialize_youtube_job=lambda **_kwargs: ("job", paths, {}),
+        initialize_youtube_job=lambda **_kwargs: ("-TTyyY3VWh8", paths, {}),
         acquire_initialized_youtube_job=lambda **_kwargs:
             (barrier.wait(timeout=2), calls.append("source"), (Path("source.mp4"), {}))[-1],
         finalize_youtube_job=lambda **_kwargs: calls.append("finalize"),
     )
-    transcript = SimpleNamespace(main=lambda _args: (barrier.wait(timeout=2), calls.append("transcript")))
+    def transcript(args):
+        transcript_args.extend(args)
+        barrier.wait(timeout=2)
+        calls.append("transcript")
+
+    transcript = SimpleNamespace(main=transcript)
     modules = {
         "01_prepare_source.py": prepare,
         "02_get_transcript.py": transcript,
@@ -48,6 +54,7 @@ def test_youtube_source_and_transcript_are_prepared_in_parallel(monkeypatch, tmp
                              str(tmp_path), "--quiet"]) == 0
     assert set(calls[:2]) == {"source", "transcript"}
     assert calls[2:] == ["finalize", "normalize", "chunks"]
+    assert "--job-id=-TTyyY3VWh8" in transcript_args
 
 
 def test_immediate_source_completion_does_not_rewrite_job_during_transcript(monkeypatch, tmp_path):
