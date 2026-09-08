@@ -2,8 +2,14 @@ import io
 import json
 import struct
 import wave
+from pathlib import Path
 
 import pytest
+
+
+def _complete_mux(commands, command):
+    commands.append(command)
+    Path(command[-1]).write_bytes(b"new-final")
 
 
 def _wav(path, frames, rate=1000):
@@ -66,7 +72,7 @@ def test_h264_video_codec_keeps_copy_fast_path(tmp_path, load_script, monkeypatc
                         lambda *_: {"codec_name": next(codecs)})
     commands = []
     monkeypatch.setattr(module.subprocess, "run",
-                        lambda command, **kwargs: commands.append(command))
+                        lambda command, **kwargs: _complete_mux(commands, command))
 
     assert module.main(["--job-id", "job", "--output-dir", str(tmp_path), "--quiet"]) == 0
 
@@ -93,7 +99,7 @@ def test_unsafe_video_codec_transcodes_and_validates_h264(
                         lambda *_: {"codec_name": next(codecs)})
     commands = []
     monkeypatch.setattr(module.subprocess, "run",
-                        lambda command, **kwargs: commands.append(command))
+                        lambda command, **kwargs: _complete_mux(commands, command))
 
     module.main(["--job-id", "job", "--output-dir", str(tmp_path), "--quiet"])
 
@@ -129,6 +135,88 @@ def test_mux_rejects_incompatible_final_codec(tmp_path, load_script, monkeypatch
     assert not (job / ".cache/work/07_audio/fast_mux_manifest.json").exists()
 
 
+def test_mux_failure_preserves_existing_final_and_removes_temporary(
+    tmp_path, load_script, monkeypatch
+):
+    module = load_script("08_mux_video.py")
+    job = tmp_path / "job"
+    (job / ".cache/work/01_source").mkdir(parents=True)
+    (job / ".cache/work/07_audio").mkdir()
+    (job / ".cache/work/01_source/source.mp4").touch()
+    (job / ".cache/work/07_audio/dub_audio.wav").touch()
+    final = job / "dubbed_video.mp4"
+    final.write_bytes(b"previous-final")
+    monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": "h264"})
+
+    def fail(command, **_kwargs):
+        Path(command[-1]).write_bytes(b"partial")
+        raise module.subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(module.subprocess, "run", fail)
+    with pytest.raises(module.MuxVideoError, match="ffmpeg command failed"):
+        module.mux_job(job_id="job", output_dir=str(tmp_path), quiet=True)
+
+    assert final.read_bytes() == b"previous-final"
+    assert not list(job.glob(".dubbed_video.*.tmp.mp4"))
+
+
+def test_mux_validation_failure_preserves_existing_final(tmp_path, load_script, monkeypatch):
+    module = load_script("08_mux_video.py")
+    job = tmp_path / "job"
+    (job / ".cache/work/01_source").mkdir(parents=True)
+    (job / ".cache/work/07_audio").mkdir()
+    (job / ".cache/work/01_source/source.mp4").touch()
+    (job / ".cache/work/07_audio/dub_audio.wav").touch()
+    final = job / "dubbed_video.mp4"
+    final.write_bytes(b"previous-final")
+    codecs = iter(["h264", "av1"])
+    monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": next(codecs)})
+    monkeypatch.setattr(module.subprocess, "run",
+                        lambda command, **_kwargs: Path(command[-1]).write_bytes(b"candidate"))
+
+    with pytest.raises(module.MuxVideoError, match="compatibility validation"):
+        module.mux_job(job_id="job", output_dir=str(tmp_path), quiet=True)
+
+    assert final.read_bytes() == b"previous-final"
+    assert not list(job.glob(".dubbed_video.*.tmp.mp4"))
+
+
+def test_successful_mux_replaces_existing_final_atomically(tmp_path, load_script, monkeypatch):
+    module = load_script("08_mux_video.py")
+    job = tmp_path / "job"
+    (job / ".cache/work/01_source").mkdir(parents=True)
+    (job / ".cache/work/07_audio").mkdir()
+    (job / ".cache/work/01_source/source.mp4").touch()
+    (job / ".cache/work/07_audio/dub_audio.wav").touch()
+    final = job / "dubbed_video.mp4"
+    final.write_bytes(b"previous-final")
+    monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": "h264"})
+    monkeypatch.setattr(module.subprocess, "run",
+                        lambda command, **_kwargs: Path(command[-1]).write_bytes(b"candidate"))
+
+    module.mux_job(job_id="job", output_dir=str(tmp_path), quiet=True)
+
+    assert final.read_bytes() == b"candidate"
+    assert not list(job.glob(".dubbed_video.*.tmp.mp4"))
+
+
+def test_first_run_mux_failure_leaves_no_final(tmp_path, load_script, monkeypatch):
+    module = load_script("08_mux_video.py")
+    job = tmp_path / "job"
+    (job / ".cache/work/01_source").mkdir(parents=True)
+    (job / ".cache/work/07_audio").mkdir()
+    (job / ".cache/work/01_source/source.mp4").touch()
+    (job / ".cache/work/07_audio/dub_audio.wav").touch()
+    monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": "h264"})
+    monkeypatch.setattr(module.subprocess, "run", lambda command, **_kwargs: (_ for _ in ()).throw(
+        module.subprocess.CalledProcessError(1, command)))
+
+    with pytest.raises(module.MuxVideoError):
+        module.mux_job(job_id="job", output_dir=str(tmp_path), quiet=True)
+
+    assert not (job / "dubbed_video.mp4").exists()
+
+
 def test_valid_background_cache_is_copied_with_original_audio_mix(tmp_path, load_script, monkeypatch):
     module = load_script("08_mux_video.py")
     job = tmp_path / "job"
@@ -140,7 +228,8 @@ def test_valid_background_cache_is_copied_with_original_audio_mix(tmp_path, load
     codecs = iter(["av1", "h264"])
     monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": next(codecs)})
     commands = []
-    monkeypatch.setattr(module.subprocess, "run", lambda command, **kwargs: commands.append(command))
+    monkeypatch.setattr(module.subprocess, "run",
+                        lambda command, **kwargs: _complete_mux(commands, command))
 
     manifest = module.mux_job(job_id="job", output_dir=str(tmp_path), quiet=True,
         compatibility_result={"compatibility_video_path": compat,
@@ -169,7 +258,8 @@ def test_background_failure_uses_original_synchronous_transcode(tmp_path, load_s
     codecs = iter(["av1", "h264"])
     monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": next(codecs)})
     commands = []
-    monkeypatch.setattr(module.subprocess, "run", lambda command, **kwargs: commands.append(command))
+    monkeypatch.setattr(module.subprocess, "run",
+                        lambda command, **kwargs: _complete_mux(commands, command))
 
     manifest = module.mux_job(job_id="job", output_dir=str(tmp_path), quiet=True,
         compatibility_result={"compatibility_failure": "encode failed",
@@ -193,6 +283,8 @@ def test_cache_copy_mux_failure_retries_original_source_transcode(
     source = job / ".cache/work/01_source/source.mp4"
     compat = job / ".cache/work/01_source/compat_h264.mp4"
     source.touch(); compat.touch(); (job / ".cache/work/07_audio/dub_audio.wav").touch()
+    final = job / "dubbed_video.mp4"
+    final.write_bytes(b"previous-final")
     codecs = iter(["av1", "h264"])
     monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": next(codecs)})
     commands = []
@@ -201,6 +293,7 @@ def test_cache_copy_mux_failure_retries_original_source_transcode(
         commands.append(command)
         if len(commands) == 1:
             raise module.subprocess.CalledProcessError(1, command, stderr="cache mux error")
+        Path(command[-1]).write_bytes(b"fallback-final")
 
     monkeypatch.setattr(module.subprocess, "run", run)
 
@@ -220,6 +313,8 @@ def test_cache_copy_mux_failure_retries_original_source_transcode(
     assert manifest["compatibility_synchronous_fallback_used"] is True
     assert "cache mux failed" in manifest["compatibility_failure"]
     assert "synchronous fallback" in manifest["compatibility_failure"]
+    assert final.read_bytes() == b"fallback-final"
+    assert not list(job.glob(".dubbed_video.*.tmp.mp4"))
 
 
 def test_cache_copy_mux_and_synchronous_fallback_failure_is_bounded(
@@ -232,6 +327,8 @@ def test_cache_copy_mux_and_synchronous_fallback_failure_is_bounded(
     source = job / ".cache/work/01_source/source.mp4"
     compat = job / ".cache/work/01_source/compat_h264.mp4"
     source.touch(); compat.touch(); (job / ".cache/work/07_audio/dub_audio.wav").touch()
+    final = job / "dubbed_video.mp4"
+    final.write_bytes(b"previous-final")
     monkeypatch.setattr(module, "_probe_video_stream", lambda *_: {"codec_name": "av1"})
     commands = []
 
@@ -249,6 +346,8 @@ def test_cache_copy_mux_and_synchronous_fallback_failure_is_bounded(
     assert len(commands) == 2
     assert "-c:v copy" in " ".join(commands[0])
     assert "-c:v libx264" in " ".join(commands[1])
+    assert final.read_bytes() == b"previous-final"
+    assert not list(job.glob(".dubbed_video.*.tmp.mp4"))
 
 
 def test_legacy_transcript_path_fallback(tmp_path):

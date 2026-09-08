@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 
 LEGACY_WORK_DIRECTORIES = (
@@ -19,6 +19,9 @@ class JobPaths:
 
     output_dir: Path
     job_id: str
+
+    def __post_init__(self) -> None:
+        validate_job_id(self.job_id)
 
     @property
     def job_dir(self) -> Path:
@@ -291,6 +294,16 @@ def _prefer_existing_dir(primary: Path, legacy: Path) -> Path:
 
 
 def build_job_paths(output_dir: str | Path, job_id: str) -> JobPaths:
-    paths = JobPaths(output_dir=Path(output_dir), job_id=job_id)
+    paths = JobPaths(output_dir=Path(output_dir), job_id=validate_job_id(job_id))
     paths.adopt_numbered_work_layout()
     return paths
+
+
+def validate_job_id(job_id: str) -> str:
+    """Require a job ID to be one unanchored directory name on every platform."""
+    if not isinstance(job_id, str) or not job_id or job_id in {".", ".."}:
+        raise ValueError("Invalid job ID: expected one non-empty directory name")
+    windows_path = PureWindowsPath(job_id)
+    if "/" in job_id or "\\" in job_id or windows_path.drive or windows_path.root:
+        raise ValueError("Invalid job ID: paths and path separators are not allowed")
+    return job_id

@@ -170,7 +170,7 @@ class CompatibilityTask:
             "source_video_codec": self.source_probe.get("codec_name") if self.source_probe else None,
             "compatibility_task_started": self.started,
             "compatibility_cache_reused": self.reused,
-            "compatibility_background_used": self.started and not self.failure,
+            "compatibility_background_used": (self.started or self.reused) and not self.failure,
             "compatibility_encoder": ENCODER if (self.started or self.reused) else None,
             "compatibility_transcode_seconds": round(transcode_seconds, 3),
             "compatibility_wait_seconds": round(monotonic() - wait_started, 3),

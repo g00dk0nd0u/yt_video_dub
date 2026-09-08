@@ -22,6 +22,7 @@ SCRIPT_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from finder import open_job_folder_in_finder
+from path_layout import validate_job_id
 
 MALE_VOICE = "ja-JP-KeitaNeural"
 FEMALE_VOICE = "ja-JP-NanamiNeural"
@@ -149,10 +150,12 @@ def _canonical_youtube_input(value: str) -> tuple[str, str]:
     """Return a canonical watch URL and video ID for a URL or bare ID."""
     value = value.strip()
     if len(value) == 11 and all(char.isalnum() or char in "-_" for char in value):
-        return f"https://www.youtube.com/watch?v={value}", value
+        video_id = validate_job_id(value)
+        return f"https://www.youtube.com/watch?v={video_id}", video_id
     video_id = _video_id_from_url(value)
     if not video_id:
         return value, ""
+    video_id = validate_job_id(video_id)
     return f"https://www.youtube.com/watch?v={video_id}", video_id
 
 

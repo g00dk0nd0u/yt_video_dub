@@ -94,6 +94,8 @@ def test_matching_identity_reuses_cache_without_ffmpeg(tmp_path, load_script, mo
     result = module.start_job("job", str(tmp_path)).finish()
 
     assert result["compatibility_cache_reused"] is True
+    assert result["compatibility_task_started"] is False
+    assert result["compatibility_background_used"] is True
     assert result["compatibility_video_path"] == cache
 
 
@@ -158,6 +160,7 @@ def test_validation_failure_removes_part_and_reports_fallback(tmp_path, load_scr
     result = task.finish()
 
     assert result["compatibility_failure"]
+    assert result["compatibility_background_used"] is False
     assert result["compatibility_video_path"] is None
     assert not part.exists()
 

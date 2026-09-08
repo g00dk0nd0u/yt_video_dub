@@ -318,6 +318,46 @@ def test_missing_demucs_fails_cleanly_without_output(tmp_path, monkeypatch, caps
     assert "Traceback" not in stderr
 
 
+@pytest.mark.parametrize("payload", [
+    [], "text", 12, None, {"background_runs": {}}, {"background_runs": "bad"},
+])
+def test_invalid_diagnostic_structure_uses_concise_cli_error_and_preserves_data(
+    tmp_path, monkeypatch, capsys, payload
+):
+    job = _job(tmp_path)
+    diagnostic = job / ".cache/diagnostic.json"
+    original = json.dumps(payload)
+    diagnostic.write_text(original)
+    calls = []
+    _fake_commands(monkeypatch, calls)
+
+    result = background.main(["--job-id", "job", "--output-dir", str(tmp_path), "--quiet"])
+
+    assert result == 1
+    assert diagnostic.read_text() == original
+    stderr = capsys.readouterr().err
+    assert "Invalid diagnostic structure" in stderr
+    assert "Traceback" not in stderr
+
+
+@pytest.mark.parametrize("job_id", ["../../outside", "../outside", "/tmp/outside",
+                                    r"..\outside", r"C:\outside"])
+def test_explicit_job_id_rejects_paths_before_filesystem_access(
+    tmp_path, monkeypatch, capsys, job_id
+):
+    outside = tmp_path / "outside"
+    outside.write_bytes(b"untouched")
+    monkeypatch.setattr(background, "add_background_audio", lambda _args: pytest.fail(
+        "media processing must not start"))
+
+    result = background.main(["--job-id", job_id, "--output-dir", str(tmp_path / "output")])
+
+    assert result == 1
+    assert outside.read_bytes() == b"untouched"
+    assert not (tmp_path / "output").exists()
+    assert "Traceback" not in capsys.readouterr().err
+
+
 def test_failed_final_mux_removes_partial_output(tmp_path, monkeypatch):
     job = _job(tmp_path)
     calls = []
