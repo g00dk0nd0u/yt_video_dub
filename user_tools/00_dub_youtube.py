@@ -17,6 +17,8 @@ from pathlib import Path
 from time import monotonic
 from urllib.parse import parse_qs, urlparse
 
+import requests
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -27,6 +29,15 @@ from path_layout import validate_job_id
 MALE_VOICE = "ja-JP-KeitaNeural"
 FEMALE_VOICE = "ja-JP-NanamiNeural"
 SPINNER_STAGES = {"Prepare", "Translation", "TTS", "Repair", "Mux"}
+AIVIS_BASE_URL = "http://127.0.0.1:10101"
+AIVIS_DISCOVERY_TIMEOUT = (0.35, 0.65)
+
+
+class VoiceChoice:
+    def __init__(self, voice: str, engine: str = "edge", speaker_id: int | None = None,
+                 label: str | None = None):
+        self.voice, self.engine = voice, engine
+        self.speaker_id, self.label = speaker_id, label
 
 
 def _tighten_repair_targets(path: Path, previous_targets: dict[str, int]) -> None:
@@ -124,15 +135,44 @@ def _call_stage(name: str, callback):
         return callback()
 
 
-def _select_voice() -> str:
-    print("日本語音声を選んでください:\n\n1. 男性\n2. 女性")
+def _available_aivis_voices() -> list[VoiceChoice]:
+    """Discover usable installed voices without starting or waiting for AivisSpeech."""
+    try:
+        response = requests.get(f"{AIVIS_BASE_URL}/speakers", timeout=AIVIS_DISCOVERY_TIMEOUT)
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError, TypeError):
+        return []
+    if not isinstance(payload, list):
+        return []
+    choices = []
+    for speaker in payload:
+        if not isinstance(speaker, dict) or not isinstance(speaker.get("name"), str):
+            continue
+        styles = speaker.get("styles")
+        if not isinstance(styles, list):
+            continue
+        for style in styles:
+            if (not isinstance(style, dict) or not isinstance(style.get("name"), str)
+                    or not isinstance(style.get("id"), int) or isinstance(style.get("id"), bool)):
+                continue
+            label = f"AivisSpeech：{speaker['name']}（{style['name']}）"
+            choices.append(VoiceChoice(str(style["id"]), "aivis", style["id"], label))
+    return choices
+
+
+def _select_voice() -> VoiceChoice:
+    choices = [VoiceChoice(MALE_VOICE, label="男性"), VoiceChoice(FEMALE_VOICE, label="女性")]
+    choices.extend(_available_aivis_voices())
+    print("日本語音声を選んでください:\n")
+    print("\n".join(f"{index}. {choice.label}" for index, choice in enumerate(choices, 1)))
     while True:
         selection = input("\n> ").strip()
-        if selection in ("", "1"):
-            return MALE_VOICE
-        if selection == "2":
-            return FEMALE_VOICE
-        print("1 または 2 を入力してください。")
+        if selection == "":
+            return choices[0]
+        if selection.isdigit() and 1 <= int(selection) <= len(choices):
+            return choices[int(selection) - 1]
+        print(f"1 から {len(choices)} の番号を入力してください。")
 
 
 def _load(filename: str):
@@ -321,6 +361,8 @@ def _mux_diagnostics(manifest: dict) -> dict:
 
 def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
         max_repair_rounds: int = 5, tts_workers: int = 4,
+        tts_engine: str = "edge", speaker_id: int | None = None,
+        voice_label: str | None = None,
         stages: dict | None = None) -> Path:
     from path_layout import build_job_paths
     from run_diagnostics import RunReport
@@ -332,7 +374,10 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
         raise RuntimeError("Prepare failed: YouTube URLから動画IDを取得できませんでした。")
     paths = build_job_paths(output_dir, job_id)
     report = RunReport(output_dir, job_id, url)
-    report.data["configuration"] = {"japanese_voice": voice, "tts_worker_count": tts_workers,
+    actual_workers = tts_workers if tts_engine == "edge" else 1
+    report.data["configuration"] = {"tts_engine": tts_engine, "japanese_voice": voice,
+                                    "voice_label": voice_label, "speaker_id": speaker_id,
+                                    "tts_worker_count": actual_workers,
                                     "max_repair_rounds": max_repair_rounds,
                                     "fixed_source_timeline": True, "original_audio_db": -38.0}
     injected = stages is not None
@@ -342,13 +387,28 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
         from providers import translation_provider
         from providers.translation.codex_cli import repair_translations
         prepare, build = _load("run_prepare.py"), _load("04_build_translated_segments.py")
-        preflight, edge = _load("05_preflight_local_run.py"), _load("06_generate_edge_tts_segments.py")
+        preflight = _load("05_preflight_local_run.py")
+        tts = _load("06_generate_edge_tts_segments.py" if tts_engine == "edge"
+                    else "06_generate_tts_segments.py")
         audio, mux = _load("07_build_dub_audio.py"), _load("08_mux_video.py")
         video_compat = _load("video_compat.py")
         common = [f"--job-id={job_id}", "--output-dir", output_dir]
         def translation_progress(completed: int, total: int) -> None:
             percent = completed * 100 // total
             print(f"Translation..... {percent:3d}% ({completed}/{total})")
+
+        def generate_tts():
+            if tts_engine == "edge":
+                return tts.generate_job(job_id=job_id, output_dir=output_dir, voice=voice,
+                                        resume=True, workers=tts_workers)
+            if tts_engine != "aivis" or speaker_id is None:
+                raise ValueError("invalid TTS engine or missing AivisSpeech speaker ID")
+            result = tts.main([f"--job-id={job_id}", "--output-dir", output_dir,
+                               "--base-url", AIVIS_BASE_URL, "--speaker-id", str(speaker_id),
+                               "--resume"])
+            if result != 0:
+                raise RuntimeError(f"AivisSpeech TTS returned exit code {result}")
+            return _json(paths.tts_manifest_path)
 
         stages = {
             "Prepare": lambda: prepare.main(["--youtube-url", url, "--output-dir", output_dir, "--quiet"]),
@@ -357,8 +417,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
                 manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md",
                 progress_callback=translation_progress),
             "Build": lambda: build.main(common), "Preflight": lambda: preflight.main(common),
-            "TTS": lambda: edge.generate_job(job_id=job_id, output_dir=output_dir, voice=voice,
-                                               resume=True, workers=tts_workers),
+            "TTS": generate_tts,
             "Repair": lambda: repair_translations(retry_path=paths.duration_retry_required_path,
                 input_dir=paths.translation_input_dir, output_dir=paths.translation_output_dir,
                 manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md"),
@@ -477,14 +536,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv); os.chdir(REPO_ROOT)
     if args.tts_workers < 1:
         parser.error("--tts-workers must be at least 1")
-    voice = args.voice or (_select_voice() if args.url is None else MALE_VOICE)
+    choice = (VoiceChoice(args.voice) if args.voice else
+              (_select_voice() if args.url is None else VoiceChoice(MALE_VOICE)))
     url = args.url or input("YouTube URLを貼ってください:\n\n> ").strip()
     if not url: print("入力が空だったため終了しました。"); return 1
     if not _canonical_youtube_input(url)[1]:
         print("Prepare failed: YouTube URLから動画IDを取得できませんでした。")
         return 1
-    try: video = run(url, output_dir=args.output_dir, voice=voice,
-                     max_repair_rounds=args.max_repair_rounds, tts_workers=args.tts_workers)
+    try: video = run(url, output_dir=args.output_dir, voice=choice.voice,
+                     max_repair_rounds=args.max_repair_rounds, tts_workers=args.tts_workers,
+                     tts_engine=choice.engine, speaker_id=choice.speaker_id,
+                     voice_label=choice.label)
     except RuntimeError as exc: print(exc); print(f"Diagnostic: {Path(args.output_dir) / _canonical_youtube_input(url)[1] / '.cache/diagnostic.json'}"); return 1
     print(f"\nCompleted.\nVideo: {video.as_posix()}\nDiagnostic: {video.parent / '.cache/diagnostic.json'}")
     return 0
