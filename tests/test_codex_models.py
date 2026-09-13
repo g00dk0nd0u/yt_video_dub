@@ -1,0 +1,54 @@
+import json
+
+import pytest
+
+from codex_models import load_codex_models
+
+
+def _write_registry(tmp_path, models):
+    path = tmp_path / "models.json"
+    path.write_text(json.dumps({"models": models}), encoding="utf-8")
+    return path
+
+
+def test_default_registry_loads_expected_order():
+    assert load_codex_models() == [
+        {"id": "gpt-6-astra", "label": "GPT-6 Astra"},
+        {"id": "gpt-5.6-sol", "label": "GPT-5.6 Sol"},
+        {"id": "gpt-5.6-terra", "label": "GPT-5.6 Terra"},
+        {"id": "gpt-5.6-luna", "label": "GPT-5.6 Luna"},
+    ]
+
+
+def test_registry_order_and_synthetic_entry_require_no_code_change(tmp_path):
+    models = [{"id": "second", "label": "Second"}, {"id": "first", "label": "First"},
+              {"id": "third", "label": "Third"}, {"id": "fourth", "label": "Fourth"},
+              {"id": "future-model-test", "label": "Future"}]
+    assert load_codex_models(_write_registry(tmp_path, models)) == models
+
+
+@pytest.mark.parametrize(("payload", "message"), [
+    ({}, "'models' must be a list"),
+    ({"models": []}, "must not be empty"),
+    ({"models": [{"id": "", "label": "Label"}]}, "non-empty string 'id'"),
+    ({"models": [{"label": "Label"}]}, "non-empty string 'id'"),
+    ({"models": [{"id": "model", "label": " "}]}, "non-empty string 'label'"),
+    ({"models": [{"id": "model"}]}, "non-empty string 'label'"),
+    ({"models": [{"id": "same", "label": "One"},
+                  {"id": "same", "label": "Two"}]}, "duplicate id"),
+    ({"models": [{"id": "one", "label": "Same"},
+                  {"id": "two", "label": "Same"}]}, "duplicate label"),
+])
+def test_invalid_registry_is_rejected(tmp_path, payload, message):
+    path = tmp_path / "models.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match=message):
+        load_codex_models(path)
+
+
+def test_registry_root_and_entries_must_be_objects(tmp_path):
+    for payload, message in [([], "root must be"), ({"models": ["model"]}, "entry 1 must be")]:
+        path = tmp_path / "models.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        with pytest.raises(ValueError, match=message):
+            load_codex_models(path)

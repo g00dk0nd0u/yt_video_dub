@@ -103,6 +103,7 @@ def test_aivis_selection_routes_style_id_and_records_serial_configuration(tmp_pa
     configuration = json.loads((tmp_path / "abc123/.cache/diagnostic.json").read_text())["configuration"]
     assert configuration == {"tts_engine": "aivis", "japanese_voice": "42",
         "voice_label": "AivisSpeech：話者（通常）", "speaker_id": 42,
+        "translation_model": None,
         "tts_worker_count": 1, "max_repair_rounds": 5,
         "fixed_source_timeline": True, "original_audio_db": -38.0}
 
@@ -166,15 +167,16 @@ def test_failure_stops_downstream(failed, not_called):
 def test_empty_url_exits_after_voice_and_url_prompts(monkeypatch):
     module = _module()
     prompts = []
-    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "")
+    answers = iter(["", "1", ""])
+    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or next(answers))
     assert module.main([]) == 1
-    assert len(prompts) == 2
+    assert len(prompts) == 3
 
 
 @pytest.mark.parametrize("selections,expected", [
-    (["", "https://youtu.be/abc123"], "ja-JP-KeitaNeural"),
-    (["2", "https://youtu.be/abc123"], "ja-JP-NanamiNeural"),
-    (["invalid", "1", "https://youtu.be/abc123"], "ja-JP-KeitaNeural"),
+    (["", "1", "https://youtu.be/abc123"], "ja-JP-KeitaNeural"),
+    (["2", "1", "https://youtu.be/abc123"], "ja-JP-NanamiNeural"),
+    (["invalid", "1", "1", "https://youtu.be/abc123"], "ja-JP-KeitaNeural"),
 ])
 def test_interactive_voice_selection(monkeypatch, tmp_path, selections, expected):
     module = _module()
@@ -189,17 +191,129 @@ def test_interactive_voice_selection(monkeypatch, tmp_path, selections, expected
     assert used == [expected]
 
 
-def test_interactive_prompt_order_is_voice_then_url(monkeypatch, tmp_path):
+def test_interactive_prompt_order_is_voice_then_model_then_url(monkeypatch, tmp_path):
     module = _module()
     monkeypatch.setattr(module, "_available_aivis_voices", lambda: [])
     prompts = []
-    answers = iter(["", "https://youtu.be/abc123"])
+    answers = iter(["", "2", "https://youtu.be/abc123"])
     monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or next(answers))
-    monkeypatch.setattr(module, "run", lambda _url, **_kwargs: tmp_path / "video.mp4")
+    used = []
+    monkeypatch.setattr(module, "run", lambda _url, **kwargs:
+                        used.append(kwargs["translation_model"]) or tmp_path / "video.mp4")
     monkeypatch.setattr(module.os, "chdir", lambda _path: None)
 
     assert module.main([]) == 0
-    assert prompts == ["\n> ", "YouTube URLを貼ってください:\n\n> "]
+    assert prompts == ["\n> ", "\n> ", "YouTube URLを貼ってください:\n\n> "]
+    assert used == ["gpt-5.6-sol"]
+
+
+def test_model_menu_reprompts_empty_and_invalid_selection(monkeypatch, capsys):
+    module = _module()
+    monkeypatch.setattr(module, "load_codex_models", lambda: [
+        {"id": "second", "label": "Second"}, {"id": "future", "label": "Future"}])
+    answers = iter(["", "3", "2"])
+    monkeypatch.setattr("builtins.input", lambda _prompt: next(answers))
+    assert module._select_translation_model() == "future"
+    output = capsys.readouterr().out
+    assert "1. Second\n2. Future" in output
+    assert output.count("1 から 2 の番号を入力してください。") == 2
+
+
+def test_model_menu_automatically_displays_synthetic_fifth_entry(monkeypatch, capsys):
+    module = _module()
+    models = [{"id": f"model-{number}", "label": f"Model {number}"}
+              for number in range(1, 6)]
+    monkeypatch.setattr(module, "load_codex_models", lambda: models)
+    monkeypatch.setattr("builtins.input", lambda _prompt: "5")
+    assert module._select_translation_model() == "model-5"
+    assert "4. Model 4\n5. Model 5" in capsys.readouterr().out
+
+
+def test_explicit_future_model_bypasses_registry_and_is_trimmed(monkeypatch, tmp_path):
+    module = _module(); used = []
+    monkeypatch.setattr(module, "load_codex_models", lambda: (_ for _ in ()).throw(
+        AssertionError("registry must not load")))
+    monkeypatch.setattr(module, "run", lambda _url, **kwargs:
+                        used.append(kwargs["translation_model"]) or tmp_path / "video.mp4")
+    monkeypatch.setattr(module.os, "chdir", lambda _path: None)
+    assert module.main(["--url", "OEkxKdhtQng", "--translation-model", " future-model-test "]) == 0
+    assert used == ["future-model-test"]
+
+
+def test_url_without_model_is_noninteractive_and_does_not_load_registry(monkeypatch, tmp_path):
+    module = _module(); used = []
+    monkeypatch.setattr("builtins.input", lambda _prompt: (_ for _ in ()).throw(
+        AssertionError("must not prompt")))
+    monkeypatch.setattr(module, "load_codex_models", lambda: (_ for _ in ()).throw(
+        AssertionError("registry must not load")))
+    monkeypatch.setattr(module, "run", lambda _url, **kwargs:
+                        used.append(kwargs["translation_model"]) or tmp_path / "video.mp4")
+    monkeypatch.setattr(module.os, "chdir", lambda _path: None)
+    assert module.main(["--url", "OEkxKdhtQng"]) == 0
+    assert used == [None]
+
+
+def test_blank_explicit_model_is_rejected(monkeypatch):
+    module = _module()
+    monkeypatch.setattr(module.os, "chdir", lambda _path: None)
+    with pytest.raises(SystemExit, match="2"):
+        module.main(["--url", "OEkxKdhtQng", "--translation-model", "  "])
+
+
+def test_default_model_menu_exact_labels_and_numbering(monkeypatch, capsys):
+    module = _module()
+    monkeypatch.setattr("builtins.input", lambda _prompt: "4")
+    assert module._select_translation_model() == "gpt-5.6-luna"
+    assert capsys.readouterr().out == (
+        "翻訳モデルを選んでください:\n\n"
+        "1. GPT-6 Astra\n"
+        "2. GPT-5.6 Sol\n"
+        "3. GPT-5.6 Terra\n"
+        "4. GPT-5.6 Luna\n"
+    )
+
+
+def test_pipeline_propagates_model_to_translation_repair_and_diagnostic(tmp_path, monkeypatch):
+    module = _module(); calls = []
+    task = types.SimpleNamespace(finish=lambda: {}, cancel=lambda: None)
+    _install_default_workflow_fakes(module, monkeypatch, tmp_path, calls, task)
+    import providers
+    import providers.translation.codex_cli as codex_cli
+    models = []
+    monkeypatch.setattr(providers, "translation_provider", lambda _name:
+                        lambda **kwargs: models.append(("translation", kwargs["model"])) or {})
+    monkeypatch.setattr(codex_cli, "repair_translations", lambda **kwargs:
+                        models.append(("repair", kwargs["model"])) or [])
+    original_load = module._load
+    tts_runs = iter([
+        {"run_metrics": {"failed_units": 0, "fit_ng_count": 1},
+         "items": [{"segment_id": "u1", "fit_status": "ng"}]},
+        {"run_metrics": {"failed_units": 0, "fit_ng_count": 0}, "items": []},
+    ])
+
+    def load(filename):
+        if filename == "06_generate_edge_tts_segments.py":
+            return types.SimpleNamespace(generate_job=lambda **_kwargs: next(tts_runs))
+        return original_load(filename)
+
+    monkeypatch.setattr(module, "_load", load)
+    module.run("https://youtu.be/abc123", output_dir=str(tmp_path),
+               translation_model="future-model-test")
+    assert models == [("translation", "future-model-test"),
+                      ("repair", "future-model-test")]
+    configuration = json.loads(
+        (tmp_path / "abc123/.cache/diagnostic.json").read_text())["configuration"]
+    assert configuration["translation_model"] == "future-model-test"
+
+
+def test_diagnostic_records_default_model_as_null(tmp_path):
+    module = _module()
+    stages = {name: (lambda: None) for name in
+              ("Prepare", "Translation", "Build", "Preflight", "TTS", "Audio", "Mux")}
+    module.run("https://youtu.be/abc123", output_dir=str(tmp_path), stages=stages)
+    configuration = json.loads(
+        (tmp_path / "abc123/.cache/diagnostic.json").read_text())["configuration"]
+    assert configuration["translation_model"] is None
 
 
 class _SpeakersResponse:
