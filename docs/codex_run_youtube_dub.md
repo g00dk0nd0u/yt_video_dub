@@ -20,6 +20,10 @@ python user_tools/00_dub_youtube.py --url "<YouTube URL or video ID>"
 
 Codex CLI は ChatGPT account sign-in を使います。paid translation API、API key、local LLM、AivisSpeech の起動は不要です。
 
+引数なしの対話式起動では、音声メニューを表示する直前に、すでに起動している
+AivisSpeech Engine から取得できたインストール済みの話者・スタイルだけを3番以降に表示します。
+Engine の起動やモデルのインストールは行わず、取得できない場合は従来の Edge TTS 2択で続行します。
+
 ## Hard gates
 
 - video を slow/retime/trim/segment-concat しない。source timeline と duration を維持し、cumulative drift を発生させない。

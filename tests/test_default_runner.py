@@ -49,12 +49,21 @@ def _install_default_workflow_fakes(module, monkeypatch, tmp_path, calls, task):
         path = job / ".cache/work/07_audio/dub_audio_manifest.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"warnings_count": 0, "items": []}))
+    def aivis(args):
+        calls.append(("Aivis TTS", args))
+        path = job / ".cache/work/06_tts/tts_manifest.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"tts_provider": "aivis", "speaker_id": 42,
+            "voice": "42", "run_metrics": {"failed_units": 0, "fit_ng_count": 0},
+            "items": []}))
+        return 0
     modules = {
         "run_prepare.py": types.SimpleNamespace(main=prepare),
         "04_build_translated_segments.py": types.SimpleNamespace(main=lambda _a: calls.append("Build")),
         "05_preflight_local_run.py": types.SimpleNamespace(main=lambda _a: calls.append("Preflight")),
         "06_generate_edge_tts_segments.py": types.SimpleNamespace(generate_job=lambda **_k:
             calls.append("TTS") or {"run_metrics": {"failed_units": 0, "fit_ng_count": 0}, "items": []}),
+        "06_generate_tts_segments.py": types.SimpleNamespace(main=aivis),
         "07_build_dub_audio.py": types.SimpleNamespace(main=audio),
         "08_mux_video.py": types.SimpleNamespace(mux_job=lambda **kwargs:
             calls.append(("Mux", kwargs["compatibility_result"])) or {}),
@@ -77,6 +86,48 @@ def test_default_workflow_starts_compatibility_before_translation(tmp_path, monk
     assert calls.index("Audio") < calls.index("Compat finish")
     mux_call = next(item for item in calls if isinstance(item, tuple) and item[0] == "Mux")
     assert mux_call[1]["compatibility_background_used"] is True
+
+
+def test_aivis_selection_routes_style_id_and_records_serial_configuration(tmp_path, monkeypatch):
+    module = _module(); calls = []
+    task = types.SimpleNamespace(finish=lambda: {}, cancel=lambda: None)
+    _install_default_workflow_fakes(module, monkeypatch, tmp_path, calls, task)
+
+    module.run("https://youtu.be/abc123", output_dir=str(tmp_path), voice="42",
+               tts_engine="aivis", speaker_id=42, voice_label="AivisSpeech：話者（通常）",
+               tts_workers=8)
+
+    invocation = next(item for item in calls if isinstance(item, tuple) and item[0] == "Aivis TTS")
+    assert invocation[1][invocation[1].index("--speaker-id") + 1] == "42"
+    assert "--resume" in invocation[1]
+    configuration = json.loads((tmp_path / "abc123/.cache/diagnostic.json").read_text())["configuration"]
+    assert configuration == {"tts_engine": "aivis", "japanese_voice": "42",
+        "voice_label": "AivisSpeech：話者（通常）", "speaker_id": 42,
+        "tts_worker_count": 1, "max_repair_rounds": 5,
+        "fixed_source_timeline": True, "original_audio_db": -38.0}
+
+
+def test_aivis_failure_stops_audio_and_mux(tmp_path, monkeypatch):
+    module = _module(); calls = []
+    task = types.SimpleNamespace(finish=lambda: {}, cancel=lambda: None)
+    _install_default_workflow_fakes(module, monkeypatch, tmp_path, calls, task)
+    original_load = module._load
+    def load(filename):
+        if filename == "06_generate_tts_segments.py":
+            return types.SimpleNamespace(main=lambda _args: (_ for _ in ()).throw(
+                RuntimeError("AivisSpeech stopped")))
+        return original_load(filename)
+    monkeypatch.setattr(module, "_load", load)
+
+    with pytest.raises(RuntimeError, match="TTS failed: AivisSpeech stopped"):
+        module.run("https://youtu.be/abc123", output_dir=str(tmp_path), voice="42",
+                   tts_engine="aivis", speaker_id=42)
+
+    assert "Audio" not in calls
+    assert not any(isinstance(item, tuple) and item[0] == "Mux" for item in calls)
+    diagnostic = json.loads((tmp_path / "abc123/.cache/diagnostic.json").read_text())
+    assert diagnostic["configuration"]["tts_engine"] == "aivis"
+    assert diagnostic["failure"]["failed_stage"] == "TTS"
 
 
 def test_pipeline_failure_cancels_background_task(tmp_path, monkeypatch):
@@ -127,6 +178,7 @@ def test_empty_url_exits_after_voice_and_url_prompts(monkeypatch):
 ])
 def test_interactive_voice_selection(monkeypatch, tmp_path, selections, expected):
     module = _module()
+    monkeypatch.setattr(module, "_available_aivis_voices", lambda: [])
     answers = iter(selections)
     used = []
     monkeypatch.setattr("builtins.input", lambda _prompt: next(answers))
@@ -139,6 +191,7 @@ def test_interactive_voice_selection(monkeypatch, tmp_path, selections, expected
 
 def test_interactive_prompt_order_is_voice_then_url(monkeypatch, tmp_path):
     module = _module()
+    monkeypatch.setattr(module, "_available_aivis_voices", lambda: [])
     prompts = []
     answers = iter(["", "https://youtu.be/abc123"])
     monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or next(answers))
@@ -147,6 +200,78 @@ def test_interactive_prompt_order_is_voice_then_url(monkeypatch, tmp_path):
 
     assert module.main([]) == 0
     assert prompts == ["\n> ", "YouTube URLを貼ってください:\n\n> "]
+
+
+class _SpeakersResponse:
+    def __init__(self, payload=None, error=None):
+        self.payload, self.error = payload, error
+
+    def raise_for_status(self):
+        if self.error:
+            raise self.error
+
+    def json(self):
+        if isinstance(self.payload, Exception):
+            raise self.payload
+        return self.payload
+
+
+@pytest.mark.parametrize("response", [
+    pytest.param(_SpeakersResponse(error=__import__("requests").HTTPError("500")), id="http"),
+    pytest.param(_SpeakersResponse(ValueError("bad json")), id="json"),
+    pytest.param(_SpeakersResponse({"speakers": []}), id="structure"),
+    pytest.param(_SpeakersResponse([]), id="empty"),
+])
+def test_aivis_discovery_failures_fall_back_to_edge_choices(monkeypatch, response):
+    module = _module()
+    monkeypatch.setattr(module.requests, "get", lambda *_args, **_kwargs: response)
+    monkeypatch.setattr("builtins.input", lambda _prompt: "2")
+    assert module._select_voice().voice == module.FEMALE_VOICE
+
+
+@pytest.mark.parametrize("error", [
+    __import__("requests").ConnectionError("offline"),
+    __import__("requests").Timeout("slow"),
+])
+def test_aivis_connection_failure_uses_short_timeout(monkeypatch, error):
+    module = _module(); observed = []
+    def get(_url, **kwargs):
+        observed.append(kwargs["timeout"])
+        raise error
+    monkeypatch.setattr(module.requests, "get", get)
+    assert module._available_aivis_voices() == []
+    assert observed == [module.AIVIS_DISCOVERY_TIMEOUT]
+
+
+def test_aivis_styles_are_listed_and_map_menu_number_to_style_id(monkeypatch, capsys):
+    module = _module()
+    payload = [
+        {"name": "話者A", "styles": [{"name": "ノーマル", "id": 41},
+                                      {"name": "別スタイル", "id": 99}]},
+        {"name": "壊れた話者", "styles": [{"name": "IDなし"}, None]},
+        {"name": "話者B", "styles": [{"name": "ノーマル", "id": 7}]},
+        "invalid",
+    ]
+    monkeypatch.setattr(module.requests, "get", lambda *_a, **_k: _SpeakersResponse(payload))
+    answers = iter(["8", "4"])
+    monkeypatch.setattr("builtins.input", lambda _prompt: next(answers))
+    choice = module._select_voice()
+    output = capsys.readouterr().out
+    assert "3. AivisSpeech：話者A（ノーマル）" in output
+    assert "4. AivisSpeech：話者A（別スタイル）" in output
+    assert "5. AivisSpeech：話者B（ノーマル）" in output
+    assert "1 から 5" in output
+    assert (choice.engine, choice.speaker_id, choice.voice) == ("aivis", 99, "99")
+
+
+def test_url_and_explicit_voice_skip_aivis_discovery(monkeypatch, tmp_path):
+    module = _module(); calls = []
+    monkeypatch.setattr(module, "_available_aivis_voices", lambda: calls.append("discovery"))
+    monkeypatch.setattr(module, "run", lambda *_a, **_k: tmp_path / "video.mp4")
+    monkeypatch.setattr(module.os, "chdir", lambda _path: None)
+    assert module.main(["--url", "OEkxKdhtQng"]) == 0
+    assert module.main(["--url", "OEkxKdhtQng", "--voice", "custom"]) == 0
+    assert calls == []
 
 
 def test_explicit_voice_bypasses_selection(monkeypatch, tmp_path):
