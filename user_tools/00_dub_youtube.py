@@ -556,8 +556,12 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--translation-model must not be blank")
     choice = (VoiceChoice(args.voice) if args.voice else
               (_select_voice() if args.url is None else VoiceChoice(MALE_VOICE)))
-    translation_model = (args.translation_model if args.translation_model is not None else
-                         (_select_translation_model() if args.url is None and args.voice is None else None))
+    try:
+        translation_model = (args.translation_model if args.translation_model is not None else
+                             (_select_translation_model() if args.url is None else None))
+    except ValueError as exc:
+        print(f"Translation model selection failed: {exc}")
+        return 1
     url = args.url or input("YouTube URLを貼ってください:\n\n> ").strip()
     if not url: print("入力が空だったため終了しました。"); return 1
     if not _canonical_youtube_input(url)[1]:

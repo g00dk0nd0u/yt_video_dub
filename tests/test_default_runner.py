@@ -388,17 +388,40 @@ def test_url_and_explicit_voice_skip_aivis_discovery(monkeypatch, tmp_path):
     assert calls == []
 
 
-def test_explicit_voice_bypasses_selection(monkeypatch, tmp_path):
+def test_explicit_voice_skips_voice_menu_but_selects_model_before_url(monkeypatch, tmp_path):
     module = _module()
     prompts = []
     used = []
-    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "https://youtu.be/abc123")
-    monkeypatch.setattr(module, "run", lambda _url, **kwargs: used.append(kwargs["voice"]) or tmp_path / "video.mp4")
+    answers = iter(["2", "https://youtu.be/abc123"])
+    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or next(answers))
+    monkeypatch.setattr(module, "run", lambda _url, **kwargs:
+                        used.append((kwargs["voice"], kwargs["translation_model"]))
+                        or tmp_path / "video.mp4")
     monkeypatch.setattr(module.os, "chdir", lambda _path: None)
 
     assert module.main(["--voice", "custom-voice"]) == 0
-    assert used == ["custom-voice"]
-    assert len(prompts) == 1
+    assert used == [("custom-voice", "gpt-5.6-sol")]
+    assert prompts == ["\n> ", "YouTube URLを貼ってください:\n\n> "]
+
+
+def test_interactive_registry_error_is_reported_without_url_or_run(monkeypatch, capsys):
+    module = _module()
+    prompts = []
+    monkeypatch.setattr(module, "_available_aivis_voices", lambda: [])
+    monkeypatch.setattr(module, "load_codex_models", lambda: (_ for _ in ()).throw(
+        ValueError("Codex model registry could not be loaded: missing.json")))
+    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "")
+    monkeypatch.setattr(module, "run", lambda *_args, **_kwargs: (_ for _ in ()).throw(
+        AssertionError("run must not be reached")))
+    monkeypatch.setattr(module.os, "chdir", lambda _path: None)
+
+    assert module.main([]) == 1
+    captured = capsys.readouterr()
+    assert captured.out.endswith(
+        "Translation model selection failed: "
+        "Codex model registry could not be loaded: missing.json\n")
+    assert captured.err == ""
+    assert prompts == ["\n> "]
 
 
 class _TTYBuffer(io.StringIO):
