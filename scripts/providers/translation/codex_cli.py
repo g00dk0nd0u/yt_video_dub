@@ -26,10 +26,29 @@ def _task_text() -> str:
     )
 
 
+def _codex_command(executable: str, workspace: Path, task: str, model: str | None) -> list[str]:
+    command = [executable, "exec"]
+    if model is not None:
+        command.extend(["--model", model])
+    command.extend(["--ephemeral", "--sandbox", "workspace-write",
+                    "--skip-git-repo-check", "-C", str(workspace), task])
+    return command
+
+
+def _failure_message(action: str, model: str | None) -> str:
+    if model is not None:
+        return f"Codex CLI {action} failed for model '{model}'."
+    if action == "translation":
+        return ("Codex CLI exited unsuccessfully. Run Codex CLI once and sign in "
+                "with your ChatGPT account.")
+    return "Codex CLI repair exited unsuccessfully; authentication or usage limit may be the cause."
+
+
 def translate_job(
     *, input_dir: Path, output_dir: Path, manifest_path: Path, rules_path: Path,
     codex_bin: str = "codex", runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
     progress_callback: Callable[[int, int], None] | None = None,
+    model: str | None = None,
 ) -> dict:
     executable = shutil.which(codex_bin)
     if executable is None:
@@ -58,15 +77,11 @@ def translate_job(
                 path.unlink()
             shutil.copy2(input_dir / name, isolated_input / name)
             result = runner(
-                [executable, "exec", "--ephemeral", "--sandbox", "workspace-write",
-                 "--skip-git-repo-check", "-C", str(workspace), _task_text()],
+                _codex_command(executable, workspace, _task_text(), model),
                 cwd=workspace, capture_output=True, text=True,
             )
             if result.returncode != 0:
-                raise CodexTranslationError(
-                    "Codex CLI exited unsuccessfully. Run Codex CLI once and sign in "
-                    "with your ChatGPT account."
-                )
+                raise CodexTranslationError(_failure_message("translation", model))
             try:
                 source_path = input_dir / name
                 translated_path = isolated_output / name
@@ -94,7 +109,7 @@ def translate_job(
         finally:
             shutil.rmtree(staged, ignore_errors=True)
 
-    metadata = {"provider": "codex_cli", "chunk_count": len(chunk_names),
+    metadata = {"provider": "codex_cli", "model": model, "chunk_count": len(chunk_names),
                 "status": "completed"}
     (output_dir / "translation_metadata.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -106,6 +121,7 @@ def repair_translations(
     *, retry_path: Path, input_dir: Path, output_dir: Path, manifest_path: Path,
     rules_path: Path, codex_bin: str = "codex",
     runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+    model: str | None = None,
 ) -> list[dict]:
     """Atomically replace only requested texts, after strict timing/ID validation."""
     executable = shutil.which(codex_bin)
@@ -140,11 +156,10 @@ def repair_translations(
                   "phrases such as よね, ですね, ですよ, ます, or です, plus redundant conjunctions and repeated expressions. "
                   "Prefer fitting the available speaking time over naturalness, without deleting meaning-critical words. "
                   "Output the same filename.")
-        result = runner([executable, "exec", "--ephemeral", "--sandbox", "workspace-write",
-                         "--skip-git-repo-check", "-C", str(workspace), task], cwd=workspace,
+        result = runner(_codex_command(executable, workspace, task, model), cwd=workspace,
                         capture_output=True, text=True)
         if result.returncode != 0:
-            raise CodexTranslationError("Codex CLI repair exited unsuccessfully; authentication or usage limit may be the cause.")
+            raise CodexTranslationError(_failure_message("repair", model))
         try:
             repaired = load_jsonl(workspace / "output" / repair_file.name)
             validated = validate_chunk_pair(selected, repaired, repair_file, repair_file,

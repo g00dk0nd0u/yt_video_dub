@@ -23,6 +23,12 @@ Codex CLI は ChatGPT account sign-in を使います。paid translation API、A
 引数なしの対話式起動では、音声メニューを表示する直前に、すでに起動している
 AivisSpeech Engine から取得できたインストール済みの話者・スタイルだけを3番以降に表示します。
 Engine の起動やモデルのインストールは行わず、取得できない場合は従来の Edge TTS 2択で続行します。
+続いて翻訳モデルを選択してから YouTube URL を入力します。翻訳モデルのメニューと表示順は
+`config/codex_models.json` から読み込まれ、モデルの追加や並べ替えはこのファイルだけで変更できます。
+
+モデル ID を直接指定する場合は `--translation-model <MODEL_ID>` を使います。レジストリにない
+新しい ID もそのまま Codex CLI に渡されます。`--url` を指定して `--translation-model` を省略した
+場合は対話メニューを表示せず、従来どおり Codex CLI のデフォルトモデルを使用します。
 
 ## Hard gates
 

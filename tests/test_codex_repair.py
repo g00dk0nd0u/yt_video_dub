@@ -64,6 +64,24 @@ def test_repair_prompt_prioritizes_spoken_duration_and_japanese_shortening(tmp_p
     assert "よね" in prompt
 
 
+@pytest.mark.parametrize("model", [None, "gpt-5.6-luna", "future-model-test"])
+def test_repair_model_argument(tmp_path, model):
+    source, output, manifest, retry, rules = _job(tmp_path)
+    commands = []
+    runner = _runner()
+
+    def capture(command, **kwargs):
+        commands.append(command)
+        return runner(command, **kwargs)
+
+    repair_translations(retry_path=retry, input_dir=source, output_dir=output,
+        manifest_path=manifest, rules_path=rules, codex_bin="python", runner=capture, model=model)
+    if model is None:
+        assert "--model" not in commands[0]
+    else:
+        assert commands[0][commands[0].index("--model") + 1] == model
+
+
 @pytest.mark.parametrize("field", ["segment_id", "start", "end", "duration"])
 def test_repair_rejects_immutable_metadata_changes(tmp_path, field):
     source, output, manifest, retry, rules = _job(tmp_path)

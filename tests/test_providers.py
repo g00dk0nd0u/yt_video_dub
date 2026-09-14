@@ -65,13 +65,15 @@ def test_codex_validation_and_isolation(tmp_path, monkeypatch, mode):
         metadata = codex_cli.translate_job(
             input_dir=input_dir, output_dir=output_dir, manifest_path=manifest,
             rules_path=rules, runner=runner)
-        assert metadata == {"provider": "codex_cli", "chunk_count": 1, "status": "completed"}
+        assert metadata == {"provider": "codex_cli", "model": None,
+                            "chunk_count": 1, "status": "completed"}
         assert json.loads((output_dir / "chunk_0001.txt").read_text())["text"] == "こんにちは"
         assert observed["workspace"] != input_dir.parents[1]
         assert "--skip-git-repo-check" in observed["command"]
         assert observed["command"][observed["command"].index("-C") + 1] == str(
             observed["workspace"]
         )
+        assert "--model" not in observed["command"]
     else:
         with pytest.raises(codex_cli.CodexTranslationError):
             codex_cli.translate_job(input_dir=input_dir, output_dir=output_dir,
@@ -129,6 +131,27 @@ def test_codex_reports_progress_per_chunk(tmp_path, monkeypatch):
     )
     assert progress == [(1, 2), (2, 2)]
     assert observed_inputs == [["chunk_0001.txt"], ["chunk_0002.txt"]]
+
+
+@pytest.mark.parametrize("model", ["gpt-5.6-luna", "future-model-test"])
+def test_codex_model_is_passed_as_argv_and_recorded(tmp_path, monkeypatch, model):
+    from providers.translation import codex_cli
+
+    input_dir, output_dir, manifest, rules, source = _translation_job(tmp_path)
+    monkeypatch.setattr(codex_cli.shutil, "which", lambda _: "/usr/bin/codex")
+    commands = []
+
+    def runner(command, **kwargs):
+        commands.append(command)
+        workspace = Path(kwargs["cwd"])
+        (workspace / "output/chunk_0001.txt").write_text(
+            json.dumps(dict(source, text="こんにちは")) + "\n")
+        return type("Result", (), {"returncode": 0})()
+
+    metadata = codex_cli.translate_job(input_dir=input_dir, output_dir=output_dir,
+        manifest_path=manifest, rules_path=rules, runner=runner, model=model)
+    assert commands[0][commands[0].index("--model") + 1] == model
+    assert metadata["model"] == model
 
 
 def test_aivis_cache_rejects_edge_manifest(load_script):

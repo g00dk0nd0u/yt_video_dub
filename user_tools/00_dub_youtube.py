@@ -24,6 +24,7 @@ SCRIPT_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from finder import open_job_folder_in_finder
+from codex_models import load_codex_models
 from path_layout import validate_job_id
 
 MALE_VOICE = "ja-JP-KeitaNeural"
@@ -173,6 +174,17 @@ def _select_voice() -> VoiceChoice:
         if selection.isdigit() and 1 <= int(selection) <= len(choices):
             return choices[int(selection) - 1]
         print(f"1 から {len(choices)} の番号を入力してください。")
+
+
+def _select_translation_model() -> str:
+    models = load_codex_models()
+    print("翻訳モデルを選んでください:\n")
+    print("\n".join(f"{index}. {model['label']}" for index, model in enumerate(models, 1)))
+    while True:
+        selection = input("\n> ").strip()
+        if selection.isdigit() and 1 <= int(selection) <= len(models):
+            return models[int(selection) - 1]["id"]
+        print(f"1 から {len(models)} の番号を入力してください。")
 
 
 def _load(filename: str):
@@ -363,6 +375,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
         max_repair_rounds: int = 5, tts_workers: int = 4,
         tts_engine: str = "edge", speaker_id: int | None = None,
         voice_label: str | None = None,
+        translation_model: str | None = None,
         stages: dict | None = None) -> Path:
     from path_layout import build_job_paths
     from run_diagnostics import RunReport
@@ -377,6 +390,7 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
     actual_workers = tts_workers if tts_engine == "edge" else 1
     report.data["configuration"] = {"tts_engine": tts_engine, "japanese_voice": voice,
                                     "voice_label": voice_label, "speaker_id": speaker_id,
+                                    "translation_model": translation_model,
                                     "tts_worker_count": actual_workers,
                                     "max_repair_rounds": max_repair_rounds,
                                     "fixed_source_timeline": True, "original_audio_db": -38.0}
@@ -415,12 +429,13 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
             "Translation": lambda: translation_provider("codex_cli")(
                 input_dir=paths.translation_input_dir, output_dir=paths.translation_output_dir,
                 manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md",
-                progress_callback=translation_progress),
+                progress_callback=translation_progress, model=translation_model),
             "Build": lambda: build.main(common), "Preflight": lambda: preflight.main(common),
             "TTS": generate_tts,
             "Repair": lambda: repair_translations(retry_path=paths.duration_retry_required_path,
                 input_dir=paths.translation_input_dir, output_dir=paths.translation_output_dir,
-                manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md"),
+                manifest_path=paths.translation_manifest_path, rules_path=REPO_ROOT / "docs/translation_mode.md",
+                model=translation_model),
             "Audio": lambda: audio.main(common),
             "Mux": lambda: mux.mux_job(job_id=job_id, output_dir=output_dir, quiet=True,
                                          compatibility_result=compatibility_result),
@@ -531,13 +546,22 @@ def run(url: str, *, output_dir: str = "output", voice: str = MALE_VOICE,
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url"); parser.add_argument("--output-dir", default="output")
+    parser.add_argument("--translation-model", type=lambda value: value.strip())
     parser.add_argument("--voice"); parser.add_argument("--max-repair-rounds", type=int, default=5)
     parser.add_argument("--tts-workers", type=int, default=4)
     args = parser.parse_args(argv); os.chdir(REPO_ROOT)
     if args.tts_workers < 1:
         parser.error("--tts-workers must be at least 1")
+    if args.translation_model == "":
+        parser.error("--translation-model must not be blank")
     choice = (VoiceChoice(args.voice) if args.voice else
               (_select_voice() if args.url is None else VoiceChoice(MALE_VOICE)))
+    try:
+        translation_model = (args.translation_model if args.translation_model is not None else
+                             (_select_translation_model() if args.url is None else None))
+    except ValueError as exc:
+        print(f"Translation model selection failed: {exc}")
+        return 1
     url = args.url or input("YouTube URLを貼ってください:\n\n> ").strip()
     if not url: print("入力が空だったため終了しました。"); return 1
     if not _canonical_youtube_input(url)[1]:
@@ -546,7 +570,7 @@ def main(argv: list[str] | None = None) -> int:
     try: video = run(url, output_dir=args.output_dir, voice=choice.voice,
                      max_repair_rounds=args.max_repair_rounds, tts_workers=args.tts_workers,
                      tts_engine=choice.engine, speaker_id=choice.speaker_id,
-                     voice_label=choice.label)
+                     voice_label=choice.label, translation_model=translation_model)
     except RuntimeError as exc: print(exc); print(f"Diagnostic: {Path(args.output_dir) / _canonical_youtube_input(url)[1] / '.cache/diagnostic.json'}"); return 1
     print(f"\nCompleted.\nVideo: {video.as_posix()}\nDiagnostic: {video.parent / '.cache/diagnostic.json'}")
     return 0
