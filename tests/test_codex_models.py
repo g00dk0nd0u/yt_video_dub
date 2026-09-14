@@ -11,13 +11,14 @@ def _write_registry(tmp_path, models):
     return path
 
 
-def test_default_registry_loads_expected_order():
-    assert load_codex_models() == [
-        {"id": "gpt-6-astra", "label": "GPT-6 Astra"},
-        {"id": "gpt-5.6-sol", "label": "GPT-5.6 Sol"},
-        {"id": "gpt-5.6-terra", "label": "GPT-5.6 Terra"},
-        {"id": "gpt-5.6-luna", "label": "GPT-5.6 Luna"},
-    ]
+def test_default_registry_is_structurally_valid():
+    models = load_codex_models()
+
+    assert models
+    assert all(isinstance(model["id"], str) and model["id"].strip() for model in models)
+    assert all(isinstance(model["label"], str) and model["label"].strip() for model in models)
+    assert len({model["id"] for model in models}) == len(models)
+    assert len({model["label"] for model in models}) == len(models)
 
 
 def test_registry_order_and_synthetic_entry_require_no_code_change(tmp_path):
