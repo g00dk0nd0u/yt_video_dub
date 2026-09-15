@@ -194,6 +194,10 @@ def test_interactive_voice_selection(monkeypatch, tmp_path, selections, expected
 def test_interactive_prompt_order_is_voice_then_model_then_url(monkeypatch, tmp_path):
     module = _module()
     monkeypatch.setattr(module, "_available_aivis_voices", lambda: [])
+    monkeypatch.setattr(module, "load_codex_models", lambda: [
+        {"id": "model-a", "label": "Model A"},
+        {"id": "model-b", "label": "Model B"},
+    ])
     prompts = []
     answers = iter(["", "2", "https://youtu.be/abc123"])
     monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or next(answers))
@@ -204,7 +208,7 @@ def test_interactive_prompt_order_is_voice_then_model_then_url(monkeypatch, tmp_
 
     assert module.main([]) == 0
     assert prompts == ["\n> ", "\n> ", "YouTube URLを貼ってください:\n\n> "]
-    assert used == ["gpt-5.6-sol"]
+    assert used == ["model-b"]
 
 
 def test_model_menu_reprompts_empty_and_invalid_selection(monkeypatch, capsys):
@@ -260,16 +264,20 @@ def test_blank_explicit_model_is_rejected(monkeypatch):
         module.main(["--url", "OEkxKdhtQng", "--translation-model", "  "])
 
 
-def test_default_model_menu_exact_labels_and_numbering(monkeypatch, capsys):
+def test_model_menu_uses_registry_order_labels_and_numbering(monkeypatch, capsys):
     module = _module()
-    monkeypatch.setattr("builtins.input", lambda _prompt: "4")
-    assert module._select_translation_model() == "gpt-5.6-luna"
+    monkeypatch.setattr(module, "load_codex_models", lambda: [
+        {"id": "model-a", "label": "Model A"},
+        {"id": "model-b", "label": "Model B"},
+        {"id": "model-c", "label": "Model C"},
+    ])
+    monkeypatch.setattr("builtins.input", lambda _prompt: "3")
+    assert module._select_translation_model() == "model-c"
     assert capsys.readouterr().out == (
         "翻訳モデルを選んでください:\n\n"
-        "1. GPT-6 Astra\n"
-        "2. GPT-5.6 Sol\n"
-        "3. GPT-5.6 Terra\n"
-        "4. GPT-5.6 Luna\n"
+        "1. Model A\n"
+        "2. Model B\n"
+        "3. Model C\n"
     )
 
 
@@ -390,6 +398,10 @@ def test_url_and_explicit_voice_skip_aivis_discovery(monkeypatch, tmp_path):
 
 def test_explicit_voice_skips_voice_menu_but_selects_model_before_url(monkeypatch, tmp_path):
     module = _module()
+    monkeypatch.setattr(module, "load_codex_models", lambda: [
+        {"id": "model-a", "label": "Model A"},
+        {"id": "model-b", "label": "Model B"},
+    ])
     prompts = []
     used = []
     answers = iter(["2", "https://youtu.be/abc123"])
@@ -400,7 +412,7 @@ def test_explicit_voice_skips_voice_menu_but_selects_model_before_url(monkeypatc
     monkeypatch.setattr(module.os, "chdir", lambda _path: None)
 
     assert module.main(["--voice", "custom-voice"]) == 0
-    assert used == [("custom-voice", "gpt-5.6-sol")]
+    assert used == [("custom-voice", "model-b")]
     assert prompts == ["\n> ", "YouTube URLを貼ってください:\n\n> "]
 
 
